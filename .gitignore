@@ -1,10 +1,12 @@
 .worktrees/
+.tmp/
 .venv/
 node_modules/
 dist/
+build/
 __pycache__/
 .pytest_cache/
 *.pyc
 *.egg-info/
 *.tsbuildinfo
-
+src-tauri/target/

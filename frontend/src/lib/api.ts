@@ -29,7 +29,7 @@ export type GenerationTask = {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${agentApiBase()}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   })
@@ -51,3 +51,4 @@ export const api = {
   generation: (id: string) => request<GenerationTask>(`/generations/${id}`),
   history: () => request<GenerationTask[]>("/history"),
 }
+import { agentApiBase } from "./desktop"

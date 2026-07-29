@@ -4,6 +4,8 @@ from uuid import uuid4
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 from .comfy.client import ComfyClient
 from .comfy.workflow import build_text_to_image_workflow
@@ -20,6 +22,16 @@ def create_app(
     store = ConfigStore(root / "config.json")
     history = HistoryStore(root / "history.json")
     app = FastAPI(title="AI Art Agent", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+            "tauri://localhost",
+        ],
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=["Content-Type"],
+    )
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -61,7 +73,10 @@ def create_app(
         task_id = str(uuid4())
         try:
             prompt_id = await comfy().queue_prompt(
-                build_text_to_image_workflow(request), task_id
+                build_text_to_image_workflow(
+                    request, output_prefix=f"AIArtAgent/{task_id}"
+                ),
+                task_id,
             )
             task = GenerationTask(
                 id=task_id,
@@ -76,27 +91,65 @@ def create_app(
 
     @app.get("/api/generations/{task_id}", response_model=GenerationTask)
     async def get_generation(task_id: str) -> GenerationTask:
+        def queue_contains(entries: list, prompt_id: str) -> bool:
+            return any(
+                (
+                    isinstance(entry, (list, tuple))
+                    and len(entry) > 1
+                    and entry[1] == prompt_id
+                )
+                or (isinstance(entry, dict) and entry.get("prompt_id") == prompt_id)
+                for entry in entries
+            )
+
         for item in history.list():
             if item.id == task_id:
                 if item.prompt_id and item.status in {"queued", "running"}:
-                    data = await comfy().history(item.prompt_id)
+                    client = comfy()
+                    data = await client.history(item.prompt_id)
                     prompt = data.get(item.prompt_id)
                     if prompt:
+                        execution_error = next(
+                            (
+                                message[1]
+                                for message in prompt.get("status", {}).get(
+                                    "messages", []
+                                )
+                                if len(message) >= 2
+                                and message[0] == "execution_error"
+                                and isinstance(message[1], dict)
+                            ),
+                            None,
+                        )
                         images = [
                             image
                             for output in prompt.get("outputs", {}).values()
                             for image in output.get("images", [])
                         ]
-                        if images:
+                        if execution_error:
+                            item.status = "failed"
+                            item.error = execution_error.get(
+                                "exception_message", "ComfyUI execution failed"
+                            )
+                        elif images:
                             item.status = "completed"
                             item.progress = 100
                             item.outputs = [
-                                f"{store.load().api_url}/view?{urlencode(image)}"
+                                f"{store.load().api_url.rstrip('/')}/view?{urlencode(image)}"
                                 for image in images
                             ]
-                            history.upsert(item)
                         else:
                             item.status = "running"
+                            item.progress = max(item.progress, 1)
+                        history.upsert(item)
+                    else:
+                        queue = await client.queue()
+                        if queue_contains(
+                            queue.get("queue_running", []), item.prompt_id
+                        ):
+                            item.status = "running"
+                            item.progress = max(item.progress, 1)
+                            history.upsert(item)
                 return item
         raise HTTPException(status_code=404, detail="任务不存在")
 
@@ -108,3 +161,7 @@ def create_app(
 
 
 app = create_app()
+
+
+def run() -> None:
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000)

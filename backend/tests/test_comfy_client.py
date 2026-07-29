@@ -18,6 +18,14 @@ async def test_client_reads_status_checkpoints_and_queues_prompt() -> None:
                     }
                 },
             )
+        if request.url.path == "/queue":
+            return httpx.Response(
+                200,
+                json={
+                    "queue_running": [[7, "prompt-1", {}, {}, []]],
+                    "queue_pending": [],
+                },
+            )
         return httpx.Response(200, json={"prompt_id": "prompt-1"})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
@@ -25,3 +33,4 @@ async def test_client_reads_status_checkpoints_and_queues_prompt() -> None:
         assert await client.check_status() is True
         assert await client.list_checkpoints() == ["a.safetensors"]
         assert await client.queue_prompt({"1": {}}, "client-1") == "prompt-1"
+        assert (await client.queue())["queue_running"][0][1] == "prompt-1"

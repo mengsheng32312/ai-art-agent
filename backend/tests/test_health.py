@@ -10,3 +10,13 @@ def test_health_returns_ok(tmp_path) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_desktop_webview_can_call_the_local_agent(tmp_path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get(
+        "/api/health", headers={"Origin": "http://tauri.localhost"}
+    )
+
+    assert response.headers["access-control-allow-origin"] == "http://tauri.localhost"

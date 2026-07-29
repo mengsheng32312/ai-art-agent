@@ -8,6 +8,17 @@
 
 **Tech Stack:** Tauri 2, Vue 3, TypeScript, Vite, Tailwind CSS, shadcn-vue styling conventions, Pinia, Vitest, Python 3.11+, FastAPI, Pydantic 2, httpx, pytest.
 
+**Status:** 进行中（2026-07-29）
+
+**Current progress:**
+
+- Backend implementation and 14 tests: complete.
+- Frontend implementation, 12 tests, and production build: complete.
+- Live ComfyUI text-to-image flow and persisted history: verified.
+- PyInstaller Agent packaging and process smoke test: verified.
+- Tauri source, lifecycle commands, resources, and installer configuration: implemented.
+- Remaining: complete the initial Cargo dependency download, run Rust tests, compile Tauri, and verify MSI/NSIS artifacts.
+
 ## Global Constraints
 
 - Target Windows 10 and Windows 11.

@@ -2,6 +2,7 @@ from copy import deepcopy
 from pathlib import Path
 import json
 import secrets
+import sys
 
 from ..schemas import GenerationRequest
 
@@ -9,8 +10,17 @@ from ..schemas import GenerationRequest
 TEMPLATE_PATH = Path(__file__).parents[3] / "workflows" / "text-to-image.json"
 
 
-def build_text_to_image_workflow(request: GenerationRequest) -> dict:
-    workflow = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8"))
+def template_path() -> Path:
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        return Path(bundle_root) / "workflows" / "text-to-image.json"
+    return TEMPLATE_PATH
+
+
+def build_text_to_image_workflow(
+    request: GenerationRequest, output_prefix: str = "AIArtAgent"
+) -> dict:
+    workflow = json.loads(template_path().read_text(encoding="utf-8"))
     workflow = deepcopy(workflow)
     workflow["1"]["inputs"]["ckpt_name"] = request.checkpoint
     workflow["2"]["inputs"]["text"] = request.prompt
@@ -28,4 +38,5 @@ def build_text_to_image_workflow(request: GenerationRequest) -> dict:
         sampler_name=request.sampler,
         scheduler=request.scheduler,
     )
+    workflow["7"]["inputs"]["filename_prefix"] = output_prefix
     return workflow

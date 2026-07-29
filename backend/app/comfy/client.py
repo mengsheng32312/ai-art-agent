@@ -35,3 +35,7 @@ class ComfyClient:
     async def history(self, prompt_id: str) -> dict:
         response = await self._request("GET", f"/history/{prompt_id}")
         return response.json()
+
+    async def queue(self) -> dict:
+        response = await self._request("GET", "/queue")
+        return response.json()

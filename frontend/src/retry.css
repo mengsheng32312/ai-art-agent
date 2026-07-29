@@ -1,0 +1,10 @@
+.connection .retry {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  color: currentColor;
+  background: transparent;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}

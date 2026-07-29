@@ -1,0 +1,15 @@
+.preview > img,
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview > img {
+  max-height: 720px;
+  border-radius: 16px;
+}
+
+.thumb {
+  overflow: hidden;
+}
