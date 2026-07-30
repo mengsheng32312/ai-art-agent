@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 
 use ai_art_agent_lib::{
     comfyui_process_spec, comfyui_start_decision, debug_agent_process_spec,
-    packaged_agent_process_spec, select_agent_port, terminate_process_tree,
-    validate_comfyui_directory_path, ComfyuiStartDecision,
+    packaged_agent_process_spec, terminate_process_tree, validate_comfyui_directory_path,
+    ComfyuiStartDecision,
 };
 use tempfile::tempdir;
 
@@ -91,21 +91,6 @@ fn uses_a_standard_checkouts_virtual_environment() {
 
     assert_eq!(spec.program, virtualenv_python);
     assert_eq!(spec.current_dir, root.path());
-}
-
-#[test]
-fn selects_the_first_available_agent_port() {
-    let selected = select_agent_port(|port| port == 8002).expect("available port");
-
-    assert_eq!(selected, 8002);
-}
-
-#[test]
-fn reports_when_the_agent_port_range_is_exhausted() {
-    let error = select_agent_port(|_| false).unwrap_err();
-
-    assert!(error.contains("8000"));
-    assert!(error.contains("8099"));
 }
 
 #[test]

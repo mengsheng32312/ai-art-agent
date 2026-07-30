@@ -1,5 +1,4 @@
 use std::ffi::OsString;
-use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
@@ -391,19 +390,13 @@ fn agent_endpoint(pid: u32, port: u16) -> AgentEndpoint {
     }
 }
 
-fn agent_port_is_available(port: u16) -> bool {
-    TcpListener::bind(("127.0.0.1", port)).is_ok()
-}
-
-fn start_local_agent_core<C, A, S, W>(
+fn start_local_agent_core<C, S, W>(
     children: &mut Vec<ManagedProcess<C>>,
-    mut is_available: A,
     mut spawn: S,
     mut wait_for_startup: W,
 ) -> Result<AgentEndpoint, String>
 where
     C: AgentChild,
-    A: FnMut(u16) -> bool,
     S: FnMut(u16) -> Result<C, String>,
     W: FnMut(),
 {
@@ -427,10 +420,7 @@ where
         }
     }
 
-    let mut minimum_port = 8000;
-    loop {
-        let port =
-            select_agent_port(|candidate| candidate >= minimum_port && is_available(candidate))?;
+    for port in 8000..=8099 {
         let mut child = spawn(port)?;
         wait_for_startup();
         match child.try_exit() {
@@ -444,9 +434,7 @@ where
                 });
                 return Ok(endpoint);
             }
-            Ok(Some(_)) if port < 8099 => {
-                minimum_port = port + 1;
-            }
+            Ok(Some(_)) if port < 8099 => {}
             Ok(Some(status)) => {
                 return Err(format!(
                     "Agent 无法绑定 8000 到 8099 端口（最后退出状态：{status}）"
@@ -458,6 +446,8 @@ where
             }
         }
     }
+
+    Err("Agent 无法绑定 8000 到 8099 端口".to_string())
 }
 
 fn spawn_local_agent(
@@ -470,7 +460,6 @@ fn spawn_local_agent(
         .map_err(|_| "进程状态锁已损坏".to_string())?;
     start_local_agent_core(
         &mut children,
-        agent_port_is_available,
         |port| {
             let spec = local_agent_process_spec(app, port)?;
             spawn_process(&spec)
@@ -591,7 +580,6 @@ mod tests {
 
         let endpoint = start_local_agent_core(
             &mut children,
-            |_| panic!("a live managed Agent must not select a new port"),
             |_| -> Result<FakeAgentChild, String> {
                 panic!("a live managed Agent must not spawn a new child")
             },
@@ -612,7 +600,6 @@ mod tests {
 
         let endpoint = start_local_agent_core(
             &mut children,
-            |port| matches!(port, 8000 | 8001),
             |port| {
                 attempted_ports.push(port);
                 Ok(if port == 8000 {
