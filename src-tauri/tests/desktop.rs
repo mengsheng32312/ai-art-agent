@@ -1,5 +1,6 @@
 use std::ffi::OsString;
 use std::fs;
+use std::path::PathBuf;
 #[cfg(windows)]
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -51,6 +52,30 @@ fn builds_the_portable_comfyui_command_from_the_selected_root() {
             OsString::from("--port"),
             OsString::from("8188"),
         ]
+    );
+}
+
+#[test]
+fn accepts_a_portable_root_with_a_launcher_batch_file() {
+    let root = tempdir().expect("temporary directory");
+    fs::write(root.path().join("run_nvidia_gpu.bat"), "").expect("create launcher");
+
+    validate_comfyui_directory_path(root.path()).expect("valid portable root");
+}
+
+#[test]
+fn uses_the_portable_launcher_batch_file_when_available() {
+    let root = tempdir().expect("temporary directory");
+    let launcher = root.path().join("run_nvidia_gpu.bat");
+    fs::write(&launcher, "").expect("create launcher");
+
+    let spec = comfyui_process_spec(root.path()).expect("portable launcher spec");
+
+    assert_eq!(spec.program, PathBuf::from("cmd.exe"));
+    assert_eq!(spec.current_dir, root.path());
+    assert_eq!(
+        spec.args,
+        vec![OsString::from("/C"), launcher.into_os_string(),]
     );
 }
 

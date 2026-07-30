@@ -85,17 +85,39 @@ fn comfyui_entry_point(root: &Path) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
+fn comfyui_launcher_batch(root: &Path) -> Option<PathBuf> {
+    [
+        root.join("run_nvidia_gpu.bat"),
+        root.join("run_cpu.bat"),
+        root.join("run_nvidia_gpu_fast_fp16_accumulation.bat"),
+        root.join("run_directml.bat"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
+}
+
 pub fn validate_comfyui_directory_path(root: &Path) -> Result<(), String> {
     if !root.is_dir() {
         return Err("所选路径不是目录".into());
     }
-    comfyui_entry_point(root)
+    comfyui_launcher_batch(root)
+        .or_else(|| comfyui_entry_point(root))
         .map(|_| ())
-        .ok_or_else(|| "目录中未找到 ComfyUI 的 main.py".into())
+        .ok_or_else(|| "目录中未找到 ComfyUI 的 main.py 或 portable 启动 .bat".into())
 }
 
 pub fn comfyui_process_spec(root: &Path) -> Result<ProcessSpec, String> {
     validate_comfyui_directory_path(root)?;
+    if let Some(launcher) = comfyui_launcher_batch(root) {
+        return Ok(ProcessSpec {
+            program: PathBuf::from("cmd.exe"),
+            current_dir: root.to_path_buf(),
+            args: [OsString::from("/C"), launcher.into_os_string()]
+                .into_iter()
+                .collect(),
+        });
+    }
+
     let entry = comfyui_entry_point(root).expect("validated ComfyUI entry point");
     let current_dir = entry
         .parent()
