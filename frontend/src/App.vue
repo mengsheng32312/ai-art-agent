@@ -68,12 +68,39 @@ async function waitForComfyui(): Promise<boolean> {
   return false
 }
 
+async function checkCandidateConnection(): Promise<boolean> {
+  const state = await api.checkStatus({ ...config })
+  connected.value = state.connected
+  connectionMessage.value = state.connected ? state.message : "ComfyUI 正在启动..."
+  if (state.connected && !form.checkpoint) {
+    const availableCheckpoints = await api.checkpoints()
+    checkpoints.value = availableCheckpoints
+    if (availableCheckpoints.length) form.checkpoint = availableCheckpoints[0]
+  }
+  return state.connected
+}
+
+async function waitForCandidateComfyui(): Promise<boolean> {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    if (await checkCandidateConnection()) return true
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+  return false
+}
+
 async function saveSettings() {
   busy.value = true
   try {
     if (config.mode === "local") config.api_url = localApiUrl
     if (config.mode === "local" && config.comfyui_path) {
       await startComfyui(config.comfyui_path)
+      notice.value = "正在等待 ComfyUI 启动..."
+      const initialReady = await waitForCandidateComfyui()
+      let ready = initialReady
+      notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
+      notice.value = "正在等待 ComfyUI 启动..."
+      ready = await waitForCandidateComfyui()
+      if (!ready) throw new Error("ComfyUI 启动超时，请确认启动脚本和模型环境正常")
     } else {
       await stopComfyui()
     }
@@ -102,6 +129,13 @@ async function testConnection() {
       if (!config.comfyui_path) throw new Error("请先选择 ComfyUI 目录")
       notice.value = "正在启动并连接本地 ComfyUI..."
       await startComfyui(config.comfyui_path)
+    }
+    if (config.mode === "local") {
+      notice.value = "正在等待 ComfyUI 启动..."
+      const ready = await waitForCandidateComfyui()
+      notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
+      busy.value = false
+      return
     }
     const state = await api.checkStatus({ ...config })
     connected.value = state.connected
