@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -14,6 +14,24 @@ pub struct ProcessSpec {
     pub program: PathBuf,
     pub args: Vec<OsString>,
     pub current_dir: PathBuf,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ComfyuiStartDecision {
+    Spawn,
+    Reuse,
+    Restart,
+}
+
+pub fn comfyui_start_decision(
+    running_root: Option<&Path>,
+    requested_root: &Path,
+) -> ComfyuiStartDecision {
+    match running_root {
+        None => ComfyuiStartDecision::Spawn,
+        Some(root) if root == requested_root => ComfyuiStartDecision::Reuse,
+        Some(_) => ComfyuiStartDecision::Restart,
+    }
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -33,7 +51,7 @@ enum ProcessRole {
 trait AgentChild {
     fn id(&self) -> u32;
     fn try_exit(&mut self) -> Result<Option<String>, String>;
-    fn terminate(&mut self);
+    fn terminate(&mut self, timeout: Duration) -> Result<(), String>;
 }
 
 impl AgentChild for Child {
@@ -47,15 +65,15 @@ impl AgentChild for Child {
             .map_err(|error| error.to_string())
     }
 
-    fn terminate(&mut self) {
-        let _ = self.kill();
-        let _ = self.wait();
+    fn terminate(&mut self, timeout: Duration) -> Result<(), String> {
+        terminate_process_tree(self, timeout)
     }
 }
 
 struct ManagedProcess<C = Child> {
     role: ProcessRole,
     child: C,
+    root: Option<PathBuf>,
     agent_port: Option<u16>,
 }
 
@@ -196,25 +214,42 @@ fn spawn_process(spec: &ProcessSpec) -> Result<Child, String> {
     })
 }
 
-fn spawn_managed(
-    spec: ProcessSpec,
-    role: ProcessRole,
-    reuse_existing: bool,
+fn start_managed_comfyui(
+    requested_root: &Path,
     processes: &ManagedProcesses,
 ) -> Result<u32, String> {
+    validate_comfyui_directory_path(requested_root)?;
+    let root = requested_root
+        .canonicalize()
+        .map_err(|error| format!("无法规范化 ComfyUI 目录：{error}"))?;
+    let spec = comfyui_process_spec(&root)?;
     let mut children = processes
         .0
         .lock()
         .map_err(|_| "进程状态锁已损坏".to_string())?;
     let mut index = 0;
     while index < children.len() {
-        if children[index].role != role {
+        if children[index].role != ProcessRole::Comfyui {
             index += 1;
             continue;
         }
         match children[index].child.try_wait() {
-            Ok(None) if reuse_existing => return Ok(children[index].child.id()),
-            Ok(None) => return Err("ComfyUI 已由应用启动，请先关闭后再切换目录".into()),
+            Ok(None) => {
+                let running_root = children[index]
+                    .root
+                    .as_deref()
+                    .ok_or_else(|| "托管 ComfyUI 缺少根目录".to_string())?;
+                match comfyui_start_decision(Some(running_root), &root) {
+                    ComfyuiStartDecision::Reuse => {
+                        return Ok(children[index].child.id());
+                    }
+                    ComfyuiStartDecision::Restart => {
+                        terminate_process_tree(&mut children[index].child, Duration::from_secs(3))?;
+                        children.remove(index);
+                    }
+                    ComfyuiStartDecision::Spawn => unreachable!("running root is present"),
+                }
+            }
             Ok(Some(_)) => {
                 children.remove(index);
             }
@@ -222,56 +257,108 @@ fn spawn_managed(
         }
     }
 
-    let mut command = Command::new(&spec.program);
-    command.args(&spec.args).current_dir(&spec.current_dir);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
-    }
-    let child = command.spawn().map_err(|error| {
-        format!(
-            "无法启动 {}：{error}",
-            spec.program.as_os_str().to_string_lossy()
-        )
-    })?;
+    let child = spawn_process(&spec)?;
     let process_id = child.id();
     children.push(ManagedProcess {
-        role,
+        role: ProcessRole::Comfyui,
         child,
+        root: Some(root),
         agent_port: None,
     });
     Ok(process_id)
 }
 
+fn wait_for_process_exit(child: &mut Child, timeout: Duration) -> Result<(), String> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return Ok(()),
+            Ok(None) if Instant::now() >= deadline => {
+                return Err(format!("等待进程 {} 退出超时", child.id()));
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(50)),
+            Err(error) => return Err(format!("无法检查进程退出状态：{error}")),
+        }
+    }
+}
+
 #[cfg(windows)]
-fn terminate_process_tree(child: &mut Child) {
+pub fn terminate_process_tree(child: &mut Child, timeout: Duration) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
 
+    if child
+        .try_wait()
+        .map_err(|error| format!("无法检查进程状态：{error}"))?
+        .is_some()
+    {
+        return Ok(());
+    }
     let process_id = child.id().to_string();
     let mut taskkill = Command::new("taskkill");
     taskkill
         .args(["/PID", process_id.as_str(), "/T", "/F"])
         .creation_flags(0x08000000);
-    let _ = taskkill.status();
-    let _ = child.wait();
+    let taskkill_succeeded = taskkill
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false);
+    if !taskkill_succeeded {
+        child
+            .kill()
+            .map_err(|error| format!("taskkill 失败，且无法终止进程 {}：{error}", child.id()))?;
+    }
+    wait_for_process_exit(child, timeout)
 }
 
 #[cfg(not(windows))]
-fn terminate_process_tree(child: &mut Child) {
-    let _ = child.kill();
-    let _ = child.wait();
+pub fn terminate_process_tree(child: &mut Child, timeout: Duration) -> Result<(), String> {
+    if child
+        .try_wait()
+        .map_err(|error| format!("无法检查进程状态：{error}"))?
+        .is_none()
+    {
+        child
+            .kill()
+            .map_err(|error| format!("无法终止进程 {}：{error}", child.id()))?;
+    }
+    wait_for_process_exit(child, timeout)
 }
 
-fn stop_all(processes: &ManagedProcesses) -> Result<(), String> {
+fn stop_matching(processes: &ManagedProcesses, role: Option<ProcessRole>) -> Result<(), String> {
     let mut children = processes
         .0
         .lock()
         .map_err(|_| "进程状态锁已损坏".to_string())?;
-    for mut process in children.drain(..) {
-        terminate_process_tree(&mut process.child);
+    let mut errors = Vec::new();
+    let mut index = 0;
+    while index < children.len() {
+        if role.is_some_and(|expected| children[index].role != expected) {
+            index += 1;
+            continue;
+        }
+        match terminate_process_tree(&mut children[index].child, Duration::from_secs(3)) {
+            Ok(()) => {
+                children.remove(index);
+            }
+            Err(error) => {
+                errors.push(error);
+                index += 1;
+            }
+        }
     }
-    Ok(())
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("；"))
+    }
+}
+
+fn stop_all(processes: &ManagedProcesses) -> Result<(), String> {
+    stop_matching(processes, None)
+}
+
+fn stop_managed_comfyui(processes: &ManagedProcesses) -> Result<(), String> {
+    stop_matching(processes, Some(ProcessRole::Comfyui))
 }
 
 fn agent_endpoint(pid: u32, port: u16) -> AgentEndpoint {
@@ -330,6 +417,7 @@ where
                 children.push(ManagedProcess {
                     role: ProcessRole::Agent,
                     child,
+                    root: None,
                     agent_port: Some(port),
                 });
                 return Ok(endpoint);
@@ -343,7 +431,7 @@ where
                 ));
             }
             Err(error) => {
-                child.terminate();
+                child.terminate(Duration::from_secs(3))?;
                 return Err(format!("无法检查新启动的 Agent 进程状态：{error}"));
             }
         }
@@ -394,12 +482,12 @@ fn start_local_agent(
 
 #[tauri::command]
 fn start_comfyui(path: String, processes: State<'_, ManagedProcesses>) -> Result<u32, String> {
-    spawn_managed(
-        comfyui_process_spec(Path::new(&path))?,
-        ProcessRole::Comfyui,
-        false,
-        &processes,
-    )
+    start_managed_comfyui(Path::new(&path), &processes)
+}
+
+#[tauri::command]
+fn stop_comfyui(processes: State<'_, ManagedProcesses>) -> Result<(), String> {
+    stop_managed_comfyui(&processes)
 }
 
 #[tauri::command]
@@ -417,6 +505,7 @@ pub fn run() {
             validate_comfyui_directory,
             start_local_agent,
             start_comfyui,
+            stop_comfyui,
             stop_managed_processes
         ])
         .build(tauri::generate_context!())
@@ -464,7 +553,9 @@ mod tests {
             Ok(self.exit_status.clone())
         }
 
-        fn terminate(&mut self) {}
+        fn terminate(&mut self, _timeout: Duration) -> Result<(), String> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -472,6 +563,7 @@ mod tests {
         let mut children = vec![ManagedProcess {
             role: ProcessRole::Agent,
             child: FakeAgentChild::running(52),
+            root: None,
             agent_port: Some(8007),
         }];
 

@@ -1,7 +1,14 @@
+import { agentApiBase } from "./desktop"
+
 export type Config = {
   mode: "local" | "remote"
   comfyui_path: string | null
   api_url: string
+}
+
+export type ConnectionStatus = {
+  connected: boolean
+  message: string
 }
 
 export type GenerationRequest = {
@@ -44,11 +51,15 @@ export const api = {
   config: () => request<Config>("/config"),
   saveConfig: (config: Config) =>
     request<Config>("/config", { method: "PUT", body: JSON.stringify(config) }),
-  status: () => request<{ connected: boolean; message: string }>("/comfy/status"),
+  status: () => request<ConnectionStatus>("/comfy/status"),
+  checkStatus: (config: Config) =>
+    request<ConnectionStatus>("/comfy/status", {
+      method: "POST",
+      body: JSON.stringify(config),
+    }),
   checkpoints: () => request<string[]>("/comfy/checkpoints"),
   generate: (data: GenerationRequest) =>
     request<GenerationTask>("/generations", { method: "POST", body: JSON.stringify(data) }),
   generation: (id: string) => request<GenerationTask>(`/generations/${id}`),
   history: () => request<GenerationTask[]>("/history"),
 }
-import { agentApiBase } from "./desktop"

@@ -6,6 +6,7 @@ import {
   prepareDesktopAgent,
   selectComfyuiDirectory,
   startComfyui,
+  stopComfyui,
   takeDesktopStartupError,
 } from "./lib/desktop"
 
@@ -70,9 +71,13 @@ async function saveSettings() {
   busy.value = true
   try {
     if (config.mode === "local") config.api_url = localApiUrl
-    await api.saveConfig(config)
     if (config.mode === "local" && config.comfyui_path) {
       await startComfyui(config.comfyui_path)
+    } else {
+      await stopComfyui()
+    }
+    await api.saveConfig({ ...config })
+    if (config.mode === "local" && config.comfyui_path) {
       notice.value = "设置已保存，正在等待 ComfyUI 启动…"
       const ready = await waitForComfyui()
       notice.value = ready ? "设置已保存" : "设置已保存，但 ComfyUI 启动超时"
@@ -84,6 +89,22 @@ async function saveSettings() {
     notice.value = error instanceof Error ? error.message : "保存失败"
   } finally {
     busy.value = false
+  }
+}
+
+async function testConnection() {
+  connectionMessage.value = "正在检测…"
+  try {
+    const state = await api.checkStatus({ ...config })
+    connected.value = state.connected
+    connectionMessage.value = state.message
+    checkpoints.value = state.connected ? await api.checkpoints() : []
+    if (!form.checkpoint && checkpoints.value.length) {
+      form.checkpoint = checkpoints.value[0]
+    }
+  } catch (error) {
+    connected.value = false
+    connectionMessage.value = error instanceof Error ? error.message : "连接失败"
   }
 }
 
@@ -109,12 +130,26 @@ async function generate() {
     currentTask.value = task
     history.value.unshift(task)
     notice.value = `任务已提交：${task.prompt_id}`
-    for (let attempt = 0; attempt < 360 && currentTask.value.status !== "completed"; attempt++) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      currentTask.value = await api.generation(task.id)
-      const index = history.value.findIndex(item => item.id === task.id)
-      if (index >= 0) history.value[index] = currentTask.value
-      if (currentTask.value.status === "failed") break
+    let failures = 0
+    while (
+      currentTask.value &&
+      !["completed", "failed"].includes(currentTask.value.status)
+    ) {
+      const delay = failures
+        ? Math.min(1000 * 2 ** failures, 5000)
+        : 1000
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      try {
+        currentTask.value = await api.generation(task.id)
+        const index = history.value.findIndex((item) => item.id === task.id)
+        if (index >= 0) history.value[index] = currentTask.value
+        if (failures) notice.value = ""
+        failures = 0
+      } catch (error) {
+        failures += 1
+        const detail = error instanceof Error ? error.message : String(error)
+        notice.value = `任务状态暂时无法更新，正在重试：${detail}`
+      }
     }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "提交失败"
@@ -200,7 +235,14 @@ onMounted(loadInitialState)
             <p v-if="notice" class="notice">{{ notice }}</p>
           </section>
           <section class="card preview">
-            <img v-if="currentTask?.outputs[0]" :src="currentTask.outputs[0]" alt="生成结果" />
+            <div v-if="currentTask?.outputs.length" class="result-gallery">
+              <img
+                v-for="(output, index) in currentTask.outputs"
+                :key="output"
+                :src="output"
+                :alt="`生成结果 ${index + 1}`"
+              />
+            </div>
             <div v-else class="empty">
               <CircleX v-if="currentTask?.status === 'failed'" :size="34" />
               <LoaderCircle v-else-if="currentTask" class="spin" :size="34" />
@@ -217,8 +259,15 @@ onMounted(loadInitialState)
         <header><div><p class="eyebrow">LIBRARY</p><h1>历史记录</h1><p>最近提交的生成任务。</p></div></header>
         <div class="history-grid">
           <article v-for="item in history" :key="item.id" class="card history-item">
-            <div class="thumb">
-              <img v-if="item.outputs[0]" :src="item.outputs[0]" alt="历史生成结果" />
+            <div class="thumb thumb-grid">
+              <template v-if="item.outputs.length">
+                <img
+                  v-for="(output, index) in item.outputs"
+                  :key="output"
+                  :src="output"
+                  :alt="`历史生成结果 ${index + 1}`"
+                />
+              </template>
               <Image v-else :size="28" />
             </div><strong>{{ item.request.prompt }}</strong>
             <small>{{ item.request.checkpoint }} · {{ item.request.width }}×{{ item.request.height }}</small>
@@ -234,7 +283,7 @@ onMounted(loadInitialState)
           <div class="segmented"><button :class="{ selected: config.mode === 'local' }" @click="setMode('local')">本地 ComfyUI</button><button :class="{ selected: config.mode === 'remote' }" @click="setMode('remote')">远程 API</button></div>
           <label v-if="config.mode === 'local'">ComfyUI 安装目录<div class="path-row"><input v-model="config.comfyui_path" placeholder="D:\ComfyUI" /><button class="secondary" @click="chooseComfyuiDirectory">选择目录</button></div></label>
           <label>API 地址<input v-model="config.api_url" placeholder="http://127.0.0.1:8188" /></label>
-          <div class="actions"><button class="secondary" @click="refreshConnection">测试连接</button><button class="primary compact" :disabled="busy || !canSave" @click="saveSettings">保存设置</button></div>
+          <div class="actions"><button class="secondary" @click="testConnection">测试连接</button><button class="primary compact" :disabled="busy || !canSave" @click="saveSettings">保存设置</button></div>
           <p v-if="notice" class="notice">{{ notice }}</p>
         </section>
       </template>

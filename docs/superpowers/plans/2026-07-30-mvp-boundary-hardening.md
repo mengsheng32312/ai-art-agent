@@ -38,7 +38,7 @@
 - Produces: `agentApiBase()` using the runtime desktop endpoint or `/api` in browser mode.
 - Consumes: backend command-line option `--port <8000..8099>`.
 
-- [ ] **Step 1: Add failing backend contract tests**
+- [x] **Step 1: Add failing backend contract tests**
 
 Update the health assertion to:
 
@@ -66,7 +66,7 @@ Run:
 
 Expected: FAIL because health lacks identity fields and `run()` ignores `--port`.
 
-- [ ] **Step 2: Implement the backend contract**
+- [x] **Step 2: Implement the backend contract**
 
 In `backend/app/main.py`, return the three health fields and parse the desktop port:
 
@@ -86,7 +86,7 @@ def run() -> None:
 
 Run the focused backend tests and confirm PASS.
 
-- [ ] **Step 3: Add failing Rust port-selection tests**
+- [x] **Step 3: Add failing Rust port-selection tests**
 
 Expose a pure selector:
 
@@ -113,7 +113,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --offline
 
 Expected: FAIL because the selector and port-aware spec do not exist.
 
-- [ ] **Step 4: Implement dynamic selection and endpoint return**
+- [x] **Step 4: Implement dynamic selection and endpoint return**
 
 Add:
 
@@ -144,7 +144,7 @@ When the current managed Agent is still alive, return an `AgentEndpoint` reconst
 
 Run the Rust tests and confirm PASS.
 
-- [ ] **Step 5: Add failing frontend bootstrap tests**
+- [x] **Step 5: Add failing frontend bootstrap tests**
 
 Change the Tauri mock to return:
 
@@ -168,7 +168,7 @@ npm.cmd --prefix frontend test -- --run frontend/src/lib/desktop.test.ts
 
 Expected: FAIL because the base URL is fixed and health JSON is not validated.
 
-- [ ] **Step 6: Implement the runtime frontend endpoint**
+- [x] **Step 6: Implement the runtime frontend endpoint**
 
 Store the endpoint only in module memory:
 
@@ -187,7 +187,7 @@ export function agentApiBase(): string {
 
 Run the focused frontend tests and confirm PASS.
 
-- [ ] **Step 7: Commit Task 1**
+- [x] **Step 7: Commit Task 1**
 
 ```powershell
 git add backend/app/main.py backend/tests/test_health.py backend/tests/test_desktop_entry.py src-tauri/src/lib.rs src-tauri/tests/desktop.rs frontend/src/lib/desktop.ts frontend/src/lib/desktop.test.ts
@@ -214,7 +214,7 @@ git commit -m "fix: select a safe desktop agent port"
 - Produces: same-path ComfyUI reuse and different-path managed restart.
 - Consumes: the current settings form as the candidate connection configuration.
 
-- [ ] **Step 1: Add failing candidate-connection API tests**
+- [x] **Step 1: Add failing candidate-connection API tests**
 
 Use a factory that records the URL it receives:
 
@@ -236,7 +236,7 @@ Add a failure test whose fake client raises and assert:
 
 Run the focused test and confirm it fails because POST is unsupported.
 
-- [ ] **Step 2: Implement candidate checking**
+- [x] **Step 2: Implement candidate checking**
 
 Extract:
 
@@ -251,7 +251,7 @@ async def connection_status(config: AppConfig) -> ConnectionStatus:
 
 Keep GET `/api/comfy/status` for saved config and add POST for the supplied `AppConfig`. Confirm the focused backend tests pass.
 
-- [ ] **Step 3: Add failing Rust lifecycle-decision tests**
+- [x] **Step 3: Add failing Rust lifecycle-decision tests**
 
 Extend `ManagedProcess` with:
 
@@ -273,7 +273,7 @@ Assert no current root means `Spawn`, equal normalized roots mean `Reuse`, and a
 
 Run Rust tests and confirm RED.
 
-- [ ] **Step 4: Implement managed ComfyUI reuse, restart, and stop**
+- [x] **Step 4: Implement managed ComfyUI reuse, restart, and stop**
 
 Normalize requested roots with `canonicalize()` after validation. For an alive managed ComfyUI:
 
@@ -290,7 +290,7 @@ fn stop_comfyui(processes: State<'_, ManagedProcesses>) -> Result<(), String>
 
 It must stop only `ProcessRole::Comfyui`. Register it in `generate_handler!`. Run Rust tests and confirm PASS.
 
-- [ ] **Step 5: Add failing frontend settings tests**
+- [x] **Step 5: Add failing frontend settings tests**
 
 Extend the API mock with `checkStatus`. Add tests proving:
 
@@ -302,7 +302,7 @@ Extend the API mock with `checkStatus`. Add tests proving:
 
 Run `frontend/src/App.test.ts` and confirm RED.
 
-- [ ] **Step 6: Implement the settings flow**
+- [x] **Step 6: Implement the settings flow**
 
 Add:
 
@@ -331,12 +331,10 @@ For save:
 
 Run the focused frontend tests and confirm PASS.
 
-- [ ] **Step 7: Commit Task 2**
+- [x] **Step 7: Include Task 2 in the combined Task 2–4 commit**
 
-```powershell
-git add backend/app/main.py backend/tests/test_generation.py src-tauri/src/lib.rs src-tauri/tests/desktop.rs frontend/src/lib/api.ts frontend/src/lib/desktop.ts frontend/src/App.vue frontend/src/App.test.ts
-git commit -m "fix: manage ComfyUI connection lifecycle"
-```
+The individual Task 2 commit was superseded by the user-requested combined
+Task 2–4 change set.
 
 ---
 
@@ -356,7 +354,7 @@ git commit -m "fix: manage ComfyUI connection lifecycle"
 - Produces: retrying frontend poll loop with a 5-second maximum delay.
 - Produces: all `GenerationTask.outputs` rendered in current results and history.
 
-- [ ] **Step 1: Add failing backend reconciliation tests**
+- [x] **Step 1: Add failing backend reconciliation tests**
 
 Add tests proving:
 
@@ -372,7 +370,7 @@ Add a pending-queue test that remains `queued`, and a gateway-exception test tha
 
 Run focused backend tests and confirm RED.
 
-- [ ] **Step 2: Implement task reconciliation**
+- [x] **Step 2: Implement task reconciliation**
 
 Inside `create_app`, keep runtime-only counters:
 
@@ -390,7 +388,7 @@ On each active-task poll:
 
 Run the focused backend tests and confirm PASS.
 
-- [ ] **Step 3: Add failing frontend retry and gallery tests**
+- [x] **Step 3: Add failing frontend retry and gallery tests**
 
 With fake timers, make `api.generation` reject once and then return completed. Assert polling retries and the final image appears.
 
@@ -407,7 +405,7 @@ Assert two current-result images with numbered alt text and two history images a
 
 Run `frontend/src/App.test.ts` and confirm RED.
 
-- [ ] **Step 4: Implement retrying polling**
+- [x] **Step 4: Implement retrying polling**
 
 Move the per-request error handling inside the polling loop:
 
@@ -428,7 +426,7 @@ while (currentTask.value && !["completed", "failed"].includes(currentTask.value.
 
 Successful polling clears the temporary retry notice. A backend terminal failure still ends the loop and displays its stored error.
 
-- [ ] **Step 5: Render all outputs**
+- [x] **Step 5: Render all outputs**
 
 Replace fixed `[0]` rendering with:
 
@@ -447,12 +445,10 @@ Render each history task's outputs in a `.thumb-grid` using `历史生成结果 
 
 Run focused frontend tests and confirm PASS.
 
-- [ ] **Step 6: Commit Task 3**
+- [x] **Step 6: Include Task 3 in the combined Task 2–4 commit**
 
-```powershell
-git add backend/app/main.py backend/tests/test_generation.py frontend/src/App.vue frontend/src/App.test.ts frontend/src/style.css frontend/src/media.css
-git commit -m "fix: recover generation polling and show all outputs"
-```
+The individual Task 3 commit was superseded by the user-requested combined
+Task 2–4 change set.
 
 ---
 
@@ -472,7 +468,7 @@ git commit -m "fix: recover generation polling and show all outputs"
 - Produces: explicit cleanup failures instead of unbounded waits.
 - Removes: unused Pinia initialization and dependency.
 
-- [ ] **Step 1: Add a failing bounded-cleanup Rust test**
+- [x] **Step 1: Add a failing bounded-cleanup Rust test**
 
 On Windows, spawn a disposable long-running command:
 
@@ -489,7 +485,7 @@ assert!(child.try_wait().unwrap().is_some());
 
 Run Rust tests and confirm RED because cleanup has no result or timeout.
 
-- [ ] **Step 2: Implement bounded cleanup**
+- [x] **Step 2: Implement bounded cleanup**
 
 Make `terminate_process_tree` return `Result<(), String>`.
 
@@ -504,7 +500,7 @@ On non-Windows, call `kill()` and use the same bounded polling helper. Update ro
 
 Run Rust tests and confirm PASS.
 
-- [ ] **Step 3: Remove unused Pinia**
+- [x] **Step 3: Remove unused Pinia**
 
 Change:
 
@@ -527,7 +523,7 @@ npm.cmd --prefix frontend run build
 
 Expected: all frontend tests and the production build pass.
 
-- [ ] **Step 4: Reconcile the implementation plan**
+- [x] **Step 4: Reconcile the implementation plan**
 
 Update the original plan to:
 
@@ -539,22 +535,22 @@ Update the original plan to:
 
 Mark every completed checkbox in this hardening plan only after its command evidence exists.
 
-- [ ] **Step 5: Run the final focused regression**
+- [x] **Step 5: Run the final focused regression**
 
 Run once after all tasks:
 
 ```powershell
-.\backend\.venv\Scripts\python.exe -m pytest backend\tests -v
-npm.cmd --prefix frontend test -- --run
+.\backend\.venv\Scripts\python.exe -m pytest backend\tests\test_generation.py backend\tests\test_health.py -v
+npm.cmd --prefix frontend test -- --run src/App.test.ts src/lib/desktop.test.ts
 npm.cmd --prefix frontend run build
-cargo test --manifest-path src-tauri\Cargo.toml --offline
+cargo test --manifest-path src-tauri\Cargo.toml --offline --lib --test desktop
 ```
 
 Expected: backend, frontend, build, and Rust all pass. Do not rebuild or reinstall NSIS unless a packaging/resource file changed.
 
-- [ ] **Step 6: Commit Task 4**
+- [x] **Step 6: Create the combined Task 2–4 commit**
 
 ```powershell
-git add src-tauri/src/lib.rs src-tauri/tests/desktop.rs frontend/src/main.ts frontend/package.json frontend/package-lock.json docs/superpowers/plans/2026-07-29-ai-art-agent-mvp.md docs/superpowers/plans/2026-07-30-mvp-boundary-hardening.md
-git commit -m "fix: bound desktop cleanup and reconcile the MVP plan"
+git add backend frontend src-tauri docs/superpowers/plans/2026-07-29-ai-art-agent-mvp.md docs/superpowers/plans/2026-07-30-mvp-boundary-hardening.md
+git commit -m "fix: harden MVP runtime boundaries"
 ```

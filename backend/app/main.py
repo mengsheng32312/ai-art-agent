@@ -22,6 +22,7 @@ def create_app(
     root = data_dir or default_data_dir()
     store = ConfigStore(root / "config.json")
     history = HistoryStore(root / "history.json")
+    missing_polls: dict[str, int] = {}
     app = FastAPI(title="AI Art Agent", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
@@ -54,13 +55,20 @@ def create_app(
     def comfy():
         return comfy_factory(store.load().api_url)
 
-    @app.get("/api/comfy/status", response_model=ConnectionStatus)
-    async def comfy_status() -> ConnectionStatus:
+    async def connection_status(config: AppConfig) -> ConnectionStatus:
         try:
-            await comfy().check_status()
+            await comfy_factory(config.api_url).check_status()
             return ConnectionStatus(connected=True, message="ComfyUI 已连接")
         except Exception as exc:
             return ConnectionStatus(connected=False, message=str(exc))
+
+    @app.get("/api/comfy/status", response_model=ConnectionStatus)
+    async def comfy_status() -> ConnectionStatus:
+        return await connection_status(store.load())
+
+    @app.post("/api/comfy/status", response_model=ConnectionStatus)
+    async def check_candidate_comfy_status(config: AppConfig) -> ConnectionStatus:
+        return await connection_status(config)
 
     @app.get("/api/comfy/checkpoints", response_model=list[str])
     async def checkpoints() -> list[str]:
@@ -111,9 +119,17 @@ def create_app(
             if item.id == task_id:
                 if item.prompt_id and item.status in {"queued", "running"}:
                     client = comfy()
-                    data = await client.history(item.prompt_id)
-                    prompt = data.get(item.prompt_id)
+                    try:
+                        data = await client.history(item.prompt_id)
+                        prompt = data.get(item.prompt_id)
+                        queue = await client.queue() if not prompt else None
+                    except Exception as exc:
+                        raise HTTPException(
+                            status_code=502,
+                            detail="暂时无法读取 ComfyUI 任务状态",
+                        ) from exc
                     if prompt:
+                        missing_polls.pop(item.id, None)
                         execution_error = next(
                             (
                                 message[1]
@@ -148,13 +164,28 @@ def create_app(
                             item.progress = max(item.progress, 1)
                         history.upsert(item)
                     else:
-                        queue = await client.queue()
                         if queue_contains(
                             queue.get("queue_running", []), item.prompt_id
                         ):
+                            missing_polls.pop(item.id, None)
                             item.status = "running"
                             item.progress = max(item.progress, 1)
                             history.upsert(item)
+                        elif queue_contains(
+                            queue.get("queue_pending", []), item.prompt_id
+                        ):
+                            missing_polls.pop(item.id, None)
+                            item.status = "queued"
+                            history.upsert(item)
+                        else:
+                            missing_polls[item.id] = missing_polls.get(item.id, 0) + 1
+                            if missing_polls[item.id] >= 3:
+                                item.status = "failed"
+                                item.error = (
+                                    "任务已从 ComfyUI 队列消失，可能已取消或中断"
+                                )
+                                missing_polls.pop(item.id, None)
+                                history.upsert(item)
                 return item
         raise HTTPException(status_code=404, detail="任务不存在")
 

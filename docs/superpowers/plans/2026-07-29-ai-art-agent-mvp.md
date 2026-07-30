@@ -1,180 +1,99 @@
 # AI Art Agent MVP Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Goal:** Build a Windows desktop application that configures a local or
+remote ComfyUI instance and completes a text-to-image generation flow without
+exposing nodes.
 
-**Goal:** Build a Windows desktop application that configures a local or remote ComfyUI instance and completes a text-to-image generation flow without exposing nodes.
+**Architecture:** A concentrated Vue 3 interface in `App.vue` runs inside
+Tauri and talks to a focused FastAPI Agent in `backend/app/main.py`. Small
+supporting modules own typed API calls, settings persistence, the ComfyUI
+gateway, workflow transformation, schemas, and history. This concentrated
+MVP architecture was explicitly approved; the earlier proposed Pinia stores,
+Vue Router views, route modules, and `GenerationService` abstraction were not
+needed and were not implemented.
 
-**Architecture:** A Vue 3 interface runs inside Tauri and communicates with a focused FastAPI local agent. The agent owns configuration, workflow construction, ComfyUI communication, task tracking, and history; ComfyUI remains an independent inference engine.
+**Tech Stack:** Tauri 2, Rust, Vue 3, TypeScript, Vite, Vitest, CSS, Python
+3.11+, FastAPI, Pydantic 2, httpx, and pytest.
 
-**Tech Stack:** Tauri 2, Vue 3, TypeScript, Vite, Tailwind CSS, shadcn-vue styling conventions, Pinia, Vitest, Python 3.11+, FastAPI, Pydantic 2, httpx, pytest.
+**Status:** Complete (2026-07-30)
 
-**Status:** 进行中（2026-07-29）
+## Verification Record
 
-**Current progress:**
-
-- Backend implementation and 14 tests: complete.
-- Frontend implementation, 12 tests, and production build: complete.
+- Backend unit and API integration tests: verified.
+- Frontend component tests and production build: verified.
+- Rust unit and desktop integration tests: verified.
+- Mocked end-to-end flow (configure, checkpoint, submit, complete, history):
+  verified.
 - Live ComfyUI text-to-image flow and persisted history: verified.
 - PyInstaller Agent packaging and process smoke test: verified.
-- Tauri source, lifecycle commands, resources, and installer configuration: implemented.
-- Remaining: complete the initial Cargo dependency download, run Rust tests, compile Tauri, and verify MSI/NSIS artifacts.
+- Tauri release executable smoke test: verified.
+- Final NSIS installer artifact and installed launch flow: verified.
+- NSIS-only packaging supersedes the early MSI/NSIS dual-output proposal.
 
-## Global Constraints
+## Approved MVP Structure
 
-- Target Windows 10 and Windows 11.
-- Support local ComfyUI directory and remote ComfyUI API modes.
-- Do not expose ComfyUI nodes or workflow JSON in the normal UI.
-- Do not download models in the MVP.
-- Store configuration and history under the operating system application-data directory.
+- `backend/app/main.py`: concentrated FastAPI routes and task reconciliation.
+- `backend/app/settings.py`, `schemas.py`, and `history.py`: persistence and
+  data contracts.
+- `backend/app/comfy/`: ComfyUI gateway and workflow transformation.
+- `backend/tests/`: mocked gateway, API, persistence, and workflow tests.
+- `frontend/src/App.vue`: settings, generation, polling, results, and history.
+- `frontend/src/lib/api.ts` and `desktop.ts`: typed HTTP and Tauri boundaries.
+- `frontend/src/*.css`: responsive visual styling.
+- `src-tauri/src/lib.rs`: native process lifecycle and desktop commands.
+- `workflows/text-to-image.json`: packaged immutable workflow template.
 
----
-
-## File Structure
-
-- `frontend/`: Vue application, typed API client, stores, pages, and UI components.
-- `src-tauri/`: Tauri configuration and commands for directory selection and process control.
-- `backend/app/`: FastAPI application organized by configuration, ComfyUI gateway, workflows, tasks, and history.
-- `backend/tests/`: unit and API integration tests using a mocked ComfyUI transport.
-- `workflows/text-to-image.json`: built-in ComfyUI API workflow template.
+## Completed Tasks
 
 ### Task 1: Backend Foundation and Settings
 
-**Files:**
-- Create: `backend/pyproject.toml`
-- Create: `backend/app/main.py`
-- Create: `backend/app/settings.py`
-- Create: `backend/app/schemas.py`
-- Test: `backend/tests/test_settings.py`
-- Test: `backend/tests/test_health.py`
-
-**Interfaces:**
-- Produces: `AppConfig`, `ConfigStore.load()`, `ConfigStore.save(config)`, `GET /api/health`, `GET/PUT /api/config`.
-
-- [ ] Write failing tests proving default remote URL is `http://127.0.0.1:8188`, config round-trips to JSON, and health returns `{"status":"ok"}`.
-- [ ] Run `python -m pytest backend/tests/test_settings.py backend/tests/test_health.py -v` and confirm failure.
-- [ ] Implement Pydantic schemas, atomic JSON configuration storage, and FastAPI routes.
-- [ ] Run the tests and confirm they pass.
-- [ ] Commit with `feat: add agent configuration foundation`.
+- [x] Implement `AppConfig`, atomic JSON configuration storage, schemas, and
+  health/config routes.
+- [x] Verify default settings, persistence, desktop health identity, and CORS.
 
 ### Task 2: ComfyUI Gateway and Workflow Builder
 
-**Files:**
-- Create: `backend/app/comfy/client.py`
-- Create: `backend/app/comfy/workflow.py`
-- Create: `workflows/text-to-image.json`
-- Test: `backend/tests/test_comfy_client.py`
-- Test: `backend/tests/test_workflow.py`
-
-**Interfaces:**
-- Produces: `ComfyClient.check_status()`, `ComfyClient.list_checkpoints()`, `ComfyClient.queue_prompt(workflow, client_id)`, `build_text_to_image_workflow(request)`.
-
-- [ ] Write failing tests with `httpx.MockTransport` for `/system_stats`, `/object_info/CheckpointLoaderSimple`, and `/prompt`.
-- [ ] Write a failing workflow test asserting prompt text, checkpoint, dimensions, seed, steps, CFG, sampler, scheduler, batch size, and output prefix are replaced.
-- [ ] Run the focused tests and confirm failure.
-- [ ] Implement the async gateway and immutable workflow-template transformation.
-- [ ] Run the focused tests and confirm they pass.
-- [ ] Commit with `feat: add ComfyUI gateway and workflow builder`.
+- [x] Implement ComfyUI status, checkpoint, queue, history, and prompt APIs.
+- [x] Implement immutable text-to-image workflow parameter replacement.
+- [x] Verify the gateway with mocked HTTP transport and workflow fixtures.
 
 ### Task 3: Task Execution and History
 
-**Files:**
-- Create: `backend/app/tasks/models.py`
-- Create: `backend/app/tasks/service.py`
-- Create: `backend/app/history.py`
-- Create: `backend/app/routes/generation.py`
-- Modify: `backend/app/main.py`
-- Test: `backend/tests/test_generation.py`
-- Test: `backend/tests/test_history.py`
-
-**Interfaces:**
-- Produces: `POST /api/generations`, `GET /api/generations/{id}`, `GET /api/history`, `GenerationService.submit(request)`.
-
-- [ ] Write failing tests for queued, running, completed, and failed task states plus persisted history after store recreation.
-- [ ] Run the focused tests and confirm failure.
-- [ ] Implement UUID task IDs, task-state transitions, output references, bounded history, and API routes.
-- [ ] Run the focused tests and confirm they pass.
-- [ ] Commit with `feat: add generation tasks and history`.
+- [x] Implement generation submission, runtime task reconciliation, output
+  URLs, execution errors, cancellation detection, and persisted history in
+  the approved concentrated backend.
+- [x] Verify queued, pending, running, completed, failed, transient gateway,
+  and multi-output behavior.
 
 ### Task 4: Frontend Foundation and Settings Flow
 
-**Files:**
-- Create: `frontend/package.json`
-- Create: `frontend/vite.config.ts`
-- Create: `frontend/src/main.ts`
-- Create: `frontend/src/App.vue`
-- Create: `frontend/src/lib/api.ts`
-- Create: `frontend/src/stores/settings.ts`
-- Create: `frontend/src/views/SettingsView.vue`
-- Test: `frontend/src/views/SettingsView.test.ts`
-
-**Interfaces:**
-- Produces: typed `agentApi`, `useSettingsStore()`, local/remote configuration form and connection test.
-
-- [ ] Write a failing component test for switching modes, validating required fields, saving settings, and displaying connection state.
-- [ ] Run `npm --prefix frontend test -- --run` and confirm failure.
-- [ ] Scaffold Vue, TypeScript, Pinia, Vue Router, Tailwind tokens, and reusable shadcn-style primitives.
-- [ ] Implement the typed API client, settings store, and accessible settings form.
-- [ ] Run frontend tests and confirm they pass.
-- [ ] Commit with `feat: add desktop settings experience`.
+- [x] Implement the typed API client and accessible local/remote settings form
+  directly in the concentrated Vue application.
+- [x] Implement candidate connection testing without persistence and native
+  ComfyUI lifecycle ordering around configuration saves.
+- [x] Verify validation, directory selection, save failure, reuse, remote
+  stop, and connection state.
 
 ### Task 5: Generation, Progress, and History UI
 
-**Files:**
-- Create: `frontend/src/stores/generation.ts`
-- Create: `frontend/src/views/GenerateView.vue`
-- Create: `frontend/src/views/HistoryView.vue`
-- Create: `frontend/src/components/GenerationForm.vue`
-- Create: `frontend/src/components/GenerationResult.vue`
-- Test: `frontend/src/components/GenerationForm.test.ts`
-- Test: `frontend/src/views/HistoryView.test.ts`
-
-**Interfaces:**
-- Consumes: `agentApi`, config connection state, generation and history endpoints.
-- Produces: complete text-to-image user flow.
-
-- [ ] Write failing tests for checkpoint selection, basic and advanced parameters, disabled submission while disconnected, progress polling, error display, and persisted result cards.
-- [ ] Run frontend tests and confirm failure.
-- [ ] Implement the generation store, form, status panel, result preview, and history grid.
-- [ ] Run frontend tests and confirm they pass.
-- [ ] Commit with `feat: add generation and history interface`.
+- [x] Implement generation parameters, checkpoint selection, resilient polling
+  with bounded backoff, terminal error display, multi-image results, and
+  multi-image history in `App.vue`.
+- [x] Verify submission, recovery after temporary gateway errors, execution
+  errors, result galleries, and persisted history cards.
 
 ### Task 6: Tauri Desktop Integration
 
-**Files:**
-- Create: `src-tauri/Cargo.toml`
-- Create: `src-tauri/tauri.conf.json`
-- Create: `src-tauri/src/lib.rs`
-- Create: `src-tauri/capabilities/default.json`
-- Modify: `frontend/src/stores/settings.ts`
-- Test: `src-tauri/src/lib.rs`
-
-**Interfaces:**
-- Produces: `select_comfyui_directory`, `validate_comfyui_directory`, `start_local_agent`, `start_comfyui`, and `stop_managed_processes` commands.
-
-- [ ] Write Rust unit tests for directory validation and command argument construction.
-- [ ] Run `cargo test --manifest-path src-tauri/Cargo.toml` and confirm failure.
-- [ ] Implement narrowly scoped Tauri commands and process lifecycle cleanup.
-- [ ] Connect the settings page to the native directory picker when running under Tauri.
-- [ ] Run Rust and frontend tests and confirm they pass.
-- [ ] Commit with `feat: integrate Windows desktop controls`.
+- [x] Implement directory validation/selection, dynamic Agent ports, managed
+  ComfyUI reuse/restart/stop, and bounded process-tree cleanup.
+- [x] Verify native command specs, lifecycle decisions, port recovery, and
+  cleanup deadlines with Rust tests.
 
 ### Task 7: End-to-End Verification and Packaging
 
-**Files:**
-- Create: `README.md`
-- Create: `.gitignore`
-- Create: `scripts/dev.ps1`
-- Create: `scripts/verify.ps1`
-- Modify: `frontend/package.json`
-- Modify: `src-tauri/tauri.conf.json`
-
-**Interfaces:**
-- Produces: documented local development flow and Windows installer build.
-
-- [ ] Run all backend tests with `python -m pytest backend/tests -v`.
-- [ ] Run all frontend tests and production build with `npm --prefix frontend test -- --run` and `npm --prefix frontend run build`.
-- [ ] Run `cargo test --manifest-path src-tauri/Cargo.toml`.
-- [ ] Run the mocked end-to-end flow: configure, list checkpoint, submit, complete, view history.
-- [ ] Build the Tauri application and verify it launches on Windows.
-- [ ] Document setup, local and remote connection modes, development commands, and MVP limitations.
-- [ ] Commit with `docs: add setup and verified desktop build`.
+- [x] Verify backend, frontend, Rust, and production frontend build commands.
+- [x] Verify the mocked end-to-end flow and live ComfyUI generation flow.
+- [x] Verify packaged Agent startup, Tauri release smoke, and the final
+  NSIS-only installer.
+- [x] Document setup, local/remote modes, development commands, and MVP
+  limitations.

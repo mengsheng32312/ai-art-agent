@@ -143,3 +143,117 @@ def test_connection_and_checkpoint_endpoints(tmp_path) -> None:
 
     assert client.get("/api/comfy/status").json()["connected"] is True
     assert client.get("/api/comfy/checkpoints").json() == ["model.safetensors"]
+
+
+def test_candidate_connection_uses_unsaved_config_without_persisting_it(
+    tmp_path,
+) -> None:
+    seen_urls: list[str] = []
+
+    def factory(url: str) -> FakeComfyClient:
+        seen_urls.append(url)
+        return FakeComfyClient()
+
+    client = TestClient(create_app(data_dir=tmp_path, comfy_factory=factory))
+    candidate = {
+        "mode": "remote",
+        "comfyui_path": None,
+        "api_url": "http://candidate-comfy:8188",
+    }
+
+    response = client.post("/api/comfy/status", json=candidate)
+
+    assert response.status_code == 200
+    assert response.json() == {"connected": True, "message": "ComfyUI 已连接"}
+    assert seen_urls == ["http://candidate-comfy:8188"]
+    assert client.get("/api/config").json()["api_url"] == "http://127.0.0.1:8188"
+
+
+def test_candidate_connection_returns_a_disconnected_status(tmp_path) -> None:
+    class UnavailableComfyClient(FakeComfyClient):
+        async def check_status(self) -> bool:
+            raise RuntimeError("candidate unavailable")
+
+    client = TestClient(
+        create_app(data_dir=tmp_path, comfy_factory=lambda _: UnavailableComfyClient())
+    )
+
+    response = client.post(
+        "/api/comfy/status",
+        json={
+            "mode": "remote",
+            "comfyui_path": None,
+            "api_url": "http://candidate-comfy:8188",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "connected": False,
+        "message": "candidate unavailable",
+    }
+
+
+def test_generation_fails_after_three_confirmed_missing_polls(tmp_path) -> None:
+    comfy = StatefulComfyClient(None)
+    client = TestClient(create_app(data_dir=tmp_path, comfy_factory=lambda _: comfy))
+    task_id = submit_generation(client)
+
+    first = client.get(f"/api/generations/{task_id}")
+    second = client.get(f"/api/generations/{task_id}")
+    third = client.get(f"/api/generations/{task_id}")
+
+    assert first.status_code == 200
+    assert first.json()["status"] == "queued"
+    assert second.json()["status"] == "queued"
+    assert third.json()["status"] == "failed"
+    assert "取消或中断" in third.json()["error"]
+
+
+def test_generation_stays_queued_while_pending_in_comfyui(tmp_path) -> None:
+    comfy = StatefulComfyClient(
+        None,
+        queue_payload={
+            "queue_running": [],
+            "queue_pending": [[7, "prompt-1", {}, {}, []]],
+        },
+    )
+    client = TestClient(create_app(data_dir=tmp_path, comfy_factory=lambda _: comfy))
+    task_id = submit_generation(client)
+
+    response = client.get(f"/api/generations/{task_id}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "queued"
+    assert response.json()["progress"] == 0
+
+
+def test_gateway_failure_does_not_consume_a_missing_poll(tmp_path) -> None:
+    class GatewayThenMissingComfyClient(StatefulComfyClient):
+        def __init__(self) -> None:
+            super().__init__(None)
+            self.history_calls = 0
+
+        async def history(self, prompt_id: str) -> dict:
+            self.history_calls += 1
+            if self.history_calls == 1:
+                raise RuntimeError("gateway unavailable")
+            return {}
+
+    comfy = GatewayThenMissingComfyClient()
+    client = TestClient(
+        create_app(data_dir=tmp_path, comfy_factory=lambda _: comfy),
+        raise_server_exceptions=False,
+    )
+    task_id = submit_generation(client)
+
+    gateway = client.get(f"/api/generations/{task_id}")
+    first_missing = client.get(f"/api/generations/{task_id}")
+    second_missing = client.get(f"/api/generations/{task_id}")
+    third_missing = client.get(f"/api/generations/{task_id}")
+
+    assert gateway.status_code == 502
+    assert gateway.json() == {"detail": "暂时无法读取 ComfyUI 任务状态"}
+    assert first_missing.json()["status"] == "queued"
+    assert second_missing.json()["status"] == "queued"
+    assert third_missing.json()["status"] == "failed"

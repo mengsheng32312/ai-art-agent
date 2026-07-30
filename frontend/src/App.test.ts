@@ -9,6 +9,7 @@ vi.mock("./lib/api", () => ({
     config: vi.fn(),
     saveConfig: vi.fn(),
     status: vi.fn(),
+    checkStatus: vi.fn(),
     checkpoints: vi.fn(),
     generate: vi.fn(),
     generation: vi.fn(),
@@ -60,6 +61,10 @@ beforeEach(() => {
   })
   mockedApi.saveConfig.mockImplementation(async (config) => config)
   mockedApi.status.mockResolvedValue({ connected: true, message: "ComfyUI 已连接" })
+  mockedApi.checkStatus.mockResolvedValue({
+    connected: true,
+    message: "ComfyUI 已连接",
+  })
   mockedApi.checkpoints.mockResolvedValue(["model.safetensors"])
   mockedApi.history.mockResolvedValue([])
   mockedApi.generate.mockResolvedValue(queuedTask)
@@ -101,14 +106,22 @@ describe("settings flow", () => {
   })
 
   test("starts the selected ComfyUI after saving local mode", async () => {
+    const events: string[] = []
     mockedApi.config.mockResolvedValue({
       mode: "remote",
       comfyui_path: null,
       api_url: "http://remote-comfy:8188",
     })
+    mockedApi.saveConfig.mockImplementation(async (saved) => {
+      events.push("save")
+      return saved
+    })
     const invoke = vi.fn(async (command: string) => {
       if (command === "select_comfyui_directory") return "D:\\ComfyUI"
-      if (command === "start_comfyui") return 42
+      if (command === "start_comfyui") {
+        events.push("start")
+        return 42
+      }
       return null
     })
     ;(window as Window & { __TAURI__?: unknown }).__TAURI__ = {
@@ -131,6 +144,7 @@ describe("settings flow", () => {
       comfyui_path: "D:\\ComfyUI",
       api_url: "http://127.0.0.1:8188",
     })
+    expect(events).toEqual(["start", "save"])
   })
 
   test("waits for a newly started local ComfyUI to become ready", async () => {
@@ -160,6 +174,97 @@ describe("settings flow", () => {
 
     expect(mockedApi.status).toHaveBeenCalledTimes(3)
     expect(wrapper.text()).toContain("ready")
+  })
+
+  test("tests the current unsaved connection form", async () => {
+    mockedApi.config.mockResolvedValue({
+      mode: "remote",
+      comfyui_path: null,
+      api_url: "http://saved-comfy:8188",
+    })
+    const wrapper = await mountApp()
+    await buttonByText(wrapper, "连接设置").trigger("click")
+    const apiUrlInput = wrapper
+      .findAll("input")
+      .find((input) => input.attributes("placeholder")?.includes("127.0.0.1"))
+    await apiUrlInput?.setValue("http://candidate-comfy:8188")
+
+    await buttonByText(wrapper, "测试连接").trigger("click")
+    await flushPromises()
+
+    expect(mockedApi.checkStatus).toHaveBeenCalledWith({
+      mode: "remote",
+      comfyui_path: null,
+      api_url: "http://candidate-comfy:8188",
+    })
+    expect(mockedApi.saveConfig).not.toHaveBeenCalled()
+  })
+
+  test("stops managed ComfyUI before saving remote settings", async () => {
+    const events: string[] = []
+    mockedApi.saveConfig.mockImplementation(async (saved) => {
+      events.push("save")
+      return saved
+    })
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "stop_comfyui") events.push("stop")
+      return null
+    })
+    ;(window as Window & { __TAURI__?: unknown }).__TAURI__ = {
+      core: { invoke },
+    }
+    const wrapper = await mountApp()
+    await buttonByText(wrapper, "连接设置").trigger("click")
+
+    await buttonByText(wrapper, "保存设置").trigger("click")
+    await flushPromises()
+
+    expect(invoke).toHaveBeenCalledWith("stop_comfyui")
+    expect(events).toEqual(["stop", "save"])
+  })
+
+  test("does not save local settings when native startup fails", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "select_comfyui_directory") return "D:\\ComfyUI"
+      if (command === "start_comfyui") throw new Error("startup failed")
+      return null
+    })
+    ;(window as Window & { __TAURI__?: unknown }).__TAURI__ = {
+      core: { invoke },
+    }
+    const wrapper = await mountApp()
+    await buttonByText(wrapper, "连接设置").trigger("click")
+    await buttonByText(wrapper, "本地 ComfyUI").trigger("click")
+    await buttonByText(wrapper, "选择目录").trigger("click")
+    await flushPromises()
+
+    await buttonByText(wrapper, "保存设置").trigger("click")
+    await flushPromises()
+
+    expect(mockedApi.saveConfig).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain("startup failed")
+  })
+
+  test("saves when native startup reuses the same local path", async () => {
+    mockedApi.config.mockResolvedValue({
+      mode: "local",
+      comfyui_path: "D:\\ComfyUI",
+      api_url: "http://127.0.0.1:8188",
+    })
+    const invoke = vi.fn().mockResolvedValue(42)
+    ;(window as Window & { __TAURI__?: unknown }).__TAURI__ = {
+      core: { invoke },
+    }
+    const wrapper = await mountApp()
+    await buttonByText(wrapper, "连接设置").trigger("click")
+
+    await buttonByText(wrapper, "保存设置").trigger("click")
+    await flushPromises()
+
+    expect(invoke).toHaveBeenCalledWith("start_comfyui", {
+      path: "D:\\ComfyUI",
+    })
+    expect(mockedApi.saveConfig).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -196,7 +301,10 @@ describe("generation flow", () => {
         ...queuedTask,
         status: "completed",
         progress: 100,
-        outputs: ["http://comfy/view?filename=fox.png"],
+        outputs: [
+          "http://comfy/view?filename=fox-1.png",
+          "http://comfy/view?filename=fox-2.png",
+        ],
       })
     const wrapper = await mountApp()
     await wrapper.get("textarea").setValue("a red fox")
@@ -206,7 +314,42 @@ describe("generation flow", () => {
     await vi.advanceTimersByTimeAsync(2000)
     await flushPromises()
 
-    expect(wrapper.get('img[alt="生成结果"]').attributes("src")).toContain("fox.png")
+    const results = wrapper.findAll('img[alt^="生成结果 "]')
+    expect(results).toHaveLength(2)
+    expect(results[0].attributes("alt")).toBe("生成结果 1")
+    expect(results[1].attributes("alt")).toBe("生成结果 2")
+    expect(mockedApi.generation).toHaveBeenCalledTimes(2)
+  })
+
+  test("retries a transient polling failure and clears the retry notice", async () => {
+    vi.useFakeTimers()
+    mockedApi.generation
+      .mockRejectedValueOnce(new Error("temporary gateway failure"))
+      .mockResolvedValueOnce({
+        ...queuedTask,
+        status: "completed",
+        progress: 100,
+        outputs: ["http://comfy/view?filename=recovered.png"],
+      })
+    const wrapper = await mountApp()
+    await wrapper.get("textarea").setValue("a red fox")
+    await buttonByText(wrapper, "开始生成").trigger("click")
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushPromises()
+    expect(wrapper.text()).toContain("正在重试")
+    expect(mockedApi.generation).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(mockedApi.generation).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await flushPromises()
+
+    expect(wrapper.get('img[alt="生成结果 1"]').attributes("src")).toContain(
+      "recovered.png",
+    )
+    expect(wrapper.text()).not.toContain("正在重试")
     expect(mockedApi.generation).toHaveBeenCalledTimes(2)
   })
 })
@@ -218,16 +361,20 @@ describe("history flow", () => {
         ...queuedTask,
         status: "completed",
         progress: 100,
-        outputs: ["http://comfy/view?filename=fox.png"],
+        outputs: [
+          "http://comfy/view?filename=fox-1.png",
+          "http://comfy/view?filename=fox-2.png",
+        ],
       },
     ])
     const wrapper = await mountApp()
 
     await buttonByText(wrapper, "历史记录").trigger("click")
 
-    expect(wrapper.get('img[alt="历史生成结果"]').attributes("src")).toContain(
-      "fox.png",
-    )
+    const thumbnails = wrapper.findAll('img[alt^="历史生成结果 "]')
+    expect(thumbnails).toHaveLength(2)
+    expect(thumbnails[0].attributes("alt")).toBe("历史生成结果 1")
+    expect(thumbnails[1].attributes("alt")).toBe("历史生成结果 2")
   })
 })
 

@@ -1,11 +1,11 @@
-.preview > img,
+.result-gallery img,
 .thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.preview > img {
+.result-gallery img {
   max-height: 720px;
   border-radius: 16px;
 }
