@@ -102,6 +102,33 @@ test("rejects a health response from an incompatible agent version", async () =>
   expect(fetch).toHaveBeenCalledTimes(40)
 })
 
+test("rejects a health response whose status is not ok", async () => {
+  vi.useFakeTimers()
+  const invoke = vi.fn().mockResolvedValue({
+    pid: 45,
+    port: 8004,
+    baseUrl: "http://127.0.0.1:8004",
+  })
+  ;(window as Window & { __TAURI__?: unknown }).__TAURI__ = {
+    core: { invoke },
+  }
+  const fetch = vi.fn().mockResolvedValue(
+    new Response(
+      '{"status":"starting","service":"ai-art-agent","version":"0.1.0"}',
+      { status: 200 },
+    ),
+  )
+  vi.stubGlobal("fetch", fetch)
+
+  const preparation = expect(
+    (desktop as DesktopWithBootstrap).prepareDesktopAgent(),
+  ).rejects.toThrow()
+  await vi.runAllTimersAsync()
+  await preparation
+
+  expect(fetch).toHaveBeenCalledTimes(40)
+})
+
 test("uses the development proxy outside Tauri", () => {
   expect(desktop.agentApiBase()).toBe("/api")
 })

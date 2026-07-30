@@ -30,9 +30,32 @@ enum ProcessRole {
     Comfyui,
 }
 
-struct ManagedProcess {
+trait AgentChild {
+    fn id(&self) -> u32;
+    fn try_exit(&mut self) -> Result<Option<String>, String>;
+    fn terminate(&mut self);
+}
+
+impl AgentChild for Child {
+    fn id(&self) -> u32 {
+        Child::id(self)
+    }
+
+    fn try_exit(&mut self) -> Result<Option<String>, String> {
+        self.try_wait()
+            .map(|status| status.map(|status| status.to_string()))
+            .map_err(|error| error.to_string())
+    }
+
+    fn terminate(&mut self) {
+        let _ = self.kill();
+        let _ = self.wait();
+    }
+}
+
+struct ManagedProcess<C = Child> {
     role: ProcessRole,
-    child: Child,
+    child: C,
     agent_port: Option<u16>,
 }
 
@@ -263,21 +286,25 @@ fn agent_port_is_available(port: u16) -> bool {
     TcpListener::bind(("127.0.0.1", port)).is_ok()
 }
 
-fn spawn_local_agent(
-    app: &tauri::AppHandle,
-    processes: &ManagedProcesses,
-) -> Result<AgentEndpoint, String> {
-    let mut children = processes
-        .0
-        .lock()
-        .map_err(|_| "进程状态锁已损坏".to_string())?;
+fn start_local_agent_core<C, A, S, W>(
+    children: &mut Vec<ManagedProcess<C>>,
+    mut is_available: A,
+    mut spawn: S,
+    mut wait_for_startup: W,
+) -> Result<AgentEndpoint, String>
+where
+    C: AgentChild,
+    A: FnMut(u16) -> bool,
+    S: FnMut(u16) -> Result<C, String>,
+    W: FnMut(),
+{
     let mut index = 0;
     while index < children.len() {
         if children[index].role != ProcessRole::Agent {
             index += 1;
             continue;
         }
-        match children[index].child.try_wait() {
+        match children[index].child.try_exit() {
             Ok(None) => {
                 let port = children[index]
                     .agent_port
@@ -293,13 +320,11 @@ fn spawn_local_agent(
 
     let mut minimum_port = 8000;
     loop {
-        let port = select_agent_port(|candidate| {
-            candidate >= minimum_port && agent_port_is_available(candidate)
-        })?;
-        let spec = local_agent_process_spec(app, port)?;
-        let mut child = spawn_process(&spec)?;
-        thread::sleep(Duration::from_millis(150));
-        match child.try_wait() {
+        let port =
+            select_agent_port(|candidate| candidate >= minimum_port && is_available(candidate))?;
+        let mut child = spawn(port)?;
+        wait_for_startup();
+        match child.try_exit() {
             Ok(None) => {
                 let endpoint = agent_endpoint(child.id(), port);
                 children.push(ManagedProcess {
@@ -318,12 +343,30 @@ fn spawn_local_agent(
                 ));
             }
             Err(error) => {
-                let _ = child.kill();
-                let _ = child.wait();
+                child.terminate();
                 return Err(format!("无法检查新启动的 Agent 进程状态：{error}"));
             }
         }
     }
+}
+
+fn spawn_local_agent(
+    app: &tauri::AppHandle,
+    processes: &ManagedProcesses,
+) -> Result<AgentEndpoint, String> {
+    let mut children = processes
+        .0
+        .lock()
+        .map_err(|_| "进程状态锁已损坏".to_string())?;
+    start_local_agent_core(
+        &mut children,
+        agent_port_is_available,
+        |port| {
+            let spec = local_agent_process_spec(app, port)?;
+            spawn_process(&spec)
+        },
+        || thread::sleep(Duration::from_millis(150)),
+    )
 }
 
 #[tauri::command]
@@ -385,4 +428,94 @@ pub fn run() {
             let _ = stop_all(&processes);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct FakeAgentChild {
+        pid: u32,
+        exit_status: Option<String>,
+    }
+
+    impl FakeAgentChild {
+        fn running(pid: u32) -> Self {
+            Self {
+                pid,
+                exit_status: None,
+            }
+        }
+
+        fn exited(pid: u32) -> Self {
+            Self {
+                pid,
+                exit_status: Some("exit code 1".to_string()),
+            }
+        }
+    }
+
+    impl AgentChild for FakeAgentChild {
+        fn id(&self) -> u32 {
+            self.pid
+        }
+
+        fn try_exit(&mut self) -> Result<Option<String>, String> {
+            Ok(self.exit_status.clone())
+        }
+
+        fn terminate(&mut self) {}
+    }
+
+    #[test]
+    fn reuses_the_saved_port_of_a_live_managed_agent() {
+        let mut children = vec![ManagedProcess {
+            role: ProcessRole::Agent,
+            child: FakeAgentChild::running(52),
+            agent_port: Some(8007),
+        }];
+
+        let endpoint = start_local_agent_core(
+            &mut children,
+            |_| panic!("a live managed Agent must not select a new port"),
+            |_| -> Result<FakeAgentChild, String> {
+                panic!("a live managed Agent must not spawn a new child")
+            },
+            || panic!("a live managed Agent must not wait for startup"),
+        )
+        .expect("reuse managed Agent");
+
+        assert_eq!(endpoint.pid, 52);
+        assert_eq!(endpoint.port, 8007);
+        assert_eq!(endpoint.base_url, "http://127.0.0.1:8007");
+        assert_eq!(children.len(), 1);
+    }
+
+    #[test]
+    fn retries_the_next_port_when_a_new_agent_exits_early() {
+        let mut children = Vec::new();
+        let mut attempted_ports = Vec::new();
+
+        let endpoint = start_local_agent_core(
+            &mut children,
+            |port| matches!(port, 8000 | 8001),
+            |port| {
+                attempted_ports.push(port);
+                Ok(if port == 8000 {
+                    FakeAgentChild::exited(60)
+                } else {
+                    FakeAgentChild::running(61)
+                })
+            },
+            || {},
+        )
+        .expect("retry after early exit");
+
+        assert_eq!(attempted_ports, vec![8000, 8001]);
+        assert_eq!(endpoint.pid, 61);
+        assert_eq!(endpoint.port, 8001);
+        assert_eq!(endpoint.base_url, "http://127.0.0.1:8001");
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0].agent_port, Some(8001));
+    }
 }
