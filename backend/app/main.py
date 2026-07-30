@@ -30,6 +30,8 @@ def create_app(
             "http://tauri.localhost",
             "https://tauri.localhost",
             "tauri://localhost",
+            "http://127.0.0.1:1420",
+            "http://localhost:1420",
         ],
         allow_methods=["GET", "POST", "PUT"],
         allow_headers=["Content-Type"],

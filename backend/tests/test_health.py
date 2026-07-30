@@ -24,3 +24,11 @@ def test_desktop_webview_can_call_the_local_agent(tmp_path) -> None:
     )
 
     assert response.headers["access-control-allow-origin"] == "http://tauri.localhost"
+
+
+def test_dev_webview_can_call_the_dynamic_local_agent(tmp_path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get("/api/health", headers={"Origin": "http://127.0.0.1:1420"})
+
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:1420"

@@ -54,6 +54,7 @@ async function refreshConnection(): Promise<boolean> {
     return state.connected
   } catch (error) {
     connected.value = false
+    notice.value = error instanceof Error ? error.message : "连接失败"
     connectionMessage.value = error instanceof Error ? error.message : "连接失败"
     return false
   }
@@ -93,8 +94,15 @@ async function saveSettings() {
 }
 
 async function testConnection() {
+  busy.value = true
   connectionMessage.value = "正在检测…"
   try {
+    if (config.mode === "local") {
+      config.api_url = localApiUrl
+      if (!config.comfyui_path) throw new Error("请先选择 ComfyUI 目录")
+      notice.value = "正在启动并连接本地 ComfyUI..."
+      await startComfyui(config.comfyui_path)
+    }
     const state = await api.checkStatus({ ...config })
     connected.value = state.connected
     connectionMessage.value = state.message
@@ -102,10 +110,13 @@ async function testConnection() {
     if (!form.checkpoint && checkpoints.value.length) {
       form.checkpoint = checkpoints.value[0]
     }
+    notice.value = state.connected ? "连接成功" : state.message
   } catch (error) {
     connected.value = false
     connectionMessage.value = error instanceof Error ? error.message : "连接失败"
   }
+  notice.value = connectionMessage.value
+  busy.value = false
 }
 
 function setMode(mode: Config["mode"]) {
@@ -275,6 +286,17 @@ onMounted(loadInitialState)
           </article>
           <div v-if="!history.length" class="card empty-list">还没有生成记录</div>
         </div>
+      </template>
+
+      <template v-else-if="page === 'settings'">
+        <header><div><p class="eyebrow">SETTINGS</p><h1>连接设置</h1><p>选择本机 ComfyUI，或连接另一台电脑上的 ComfyUI。</p></div></header>
+        <section class="card settings-card">
+          <div class="segmented"><button :class="{ selected: config.mode === 'local' }" @click="setMode('local')">本地 ComfyUI</button><button :class="{ selected: config.mode === 'remote' }" @click="setMode('remote')">远程 API</button></div>
+          <label v-if="config.mode === 'local'">ComfyUI 目录<div class="path-row"><input v-model="config.comfyui_path" placeholder="D:\ComfyUI" /><button class="secondary" @click="chooseComfyuiDirectory">选择目录</button></div></label>
+          <label v-if="config.mode === 'remote'">API 地址<input v-model="config.api_url" placeholder="http://127.0.0.1:8188" /></label>
+          <div class="actions"><button class="secondary" :disabled="busy" @click="testConnection">{{ config.mode === 'local' ? "启动并连接" : "测试连接" }}</button><button class="primary compact" :disabled="busy || !canSave" @click="saveSettings">保存设置</button></div>
+          <p v-if="notice" class="notice">{{ notice }}</p>
+        </section>
       </template>
 
       <template v-else>

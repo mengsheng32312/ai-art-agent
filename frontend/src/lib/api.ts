@@ -36,10 +36,15 @@ export type GenerationTask = {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${agentApiBase()}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${agentApiBase()}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...init,
+    })
+  } catch {
+    throw new Error("软件后台未连接，请重启应用或稍后再试")
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
     throw new Error(body.detail ?? `请求失败 (${response.status})`)
