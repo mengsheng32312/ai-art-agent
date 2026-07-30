@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 from collections.abc import Callable
 from uuid import uuid4
@@ -35,7 +36,11 @@ def create_app(
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
-        return {"status": "ok"}
+        return {
+            "status": "ok",
+            "service": "ai-art-agent",
+            "version": "0.1.0",
+        }
 
     @app.get("/api/config", response_model=AppConfig)
     def get_config() -> AppConfig:
@@ -163,5 +168,14 @@ def create_app(
 app = create_app()
 
 
+def desktop_port(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--port", type=int, default=8000)
+    options, _ = parser.parse_known_args(argv)
+    if not 8000 <= options.port <= 8099:
+        raise ValueError("Agent 端口必须在 8000 到 8099 之间")
+    return options.port
+
+
 def run() -> None:
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=desktop_port())

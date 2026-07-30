@@ -9,7 +9,11 @@ def test_health_returns_ok(tmp_path) -> None:
     response = client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {
+        "status": "ok",
+        "service": "ai-art-agent",
+        "version": "0.1.0",
+    }
 
 
 def test_desktop_webview_can_call_the_local_agent(tmp_path) -> None:

@@ -248,11 +248,23 @@ test("restarts the desktop Agent before retrying initial state", async () => {
       comfyui_path: null,
       api_url: "http://127.0.0.1:8188",
     })
-  const invoke = vi.fn().mockResolvedValue(42)
+  const invoke = vi.fn().mockResolvedValue({
+    pid: 42,
+    port: 8001,
+    baseUrl: "http://127.0.0.1:8001",
+  })
   ;(window as Window & { __TAURI__?: unknown }).__TAURI__ = {
     core: { invoke },
   }
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }))
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        '{"status":"ok","service":"ai-art-agent","version":"0.1.0"}',
+        { status: 200 },
+      ),
+    ),
+  )
   const wrapper = await mountApp()
 
   await wrapper.get("button.retry").trigger("click")

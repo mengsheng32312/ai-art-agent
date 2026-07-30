@@ -8,7 +8,14 @@ type TauriWindow = Window & {
   }
 }
 
+type AgentEndpoint = {
+  pid: number
+  port: number
+  baseUrl: string
+}
+
 let desktopStartupError: string | null = null
+let desktopAgentBase: string | null = null
 
 function core(): TauriCore | null {
   return (window as TauriWindow).__TAURI__?.core ?? null
@@ -19,7 +26,9 @@ export function isDesktop(): boolean {
 }
 
 export function agentApiBase(): string {
-  return isDesktop() ? "http://127.0.0.1:8000/api" : "/api"
+  return isDesktop() && desktopAgentBase
+    ? `${desktopAgentBase}/api`
+    : "/api"
 }
 
 export async function selectComfyuiDirectory(): Promise<string | null> {
@@ -31,7 +40,8 @@ export async function selectComfyuiDirectory(): Promise<string | null> {
 export async function startDesktopAgent(): Promise<void> {
   const tauri = core()
   if (!tauri) return
-  await tauri.invoke<number>("start_local_agent")
+  const endpoint = await tauri.invoke<AgentEndpoint>("start_local_agent")
+  desktopAgentBase = endpoint.baseUrl
 }
 
 export async function prepareDesktopAgent(): Promise<void> {
@@ -40,7 +50,21 @@ export async function prepareDesktopAgent(): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt++) {
     try {
       const response = await fetch(`${agentApiBase()}/health`)
-      if (response.ok) return
+      if (response.ok) {
+        const health: unknown = await response.json()
+        if (
+          typeof health === "object" &&
+          health !== null &&
+          "status" in health &&
+          health.status === "ok" &&
+          "service" in health &&
+          health.service === "ai-art-agent" &&
+          "version" in health &&
+          health.version === "0.1.0"
+        ) {
+          return
+        }
+      }
     } catch {
       // The packaged process can take a moment to unpack and bind its port.
     }
