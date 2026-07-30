@@ -4,7 +4,10 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 
 Push-Location (Join-Path $projectRoot "backend")
 try {
-    & ".\.venv\Scripts\python.exe" -m pytest tests -v
+    $pytestTemp = Join-Path $projectRoot ".tmp\pytest-$PID"
+    & ".\.venv\Scripts\python.exe" -m pytest tests -v `
+        -p no:cacheprovider `
+        --basetemp $pytestTemp
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
