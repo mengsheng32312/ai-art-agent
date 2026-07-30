@@ -7,20 +7,18 @@ AI Art Agent 是面向 ComfyUI 的 Windows 桌面创作界面。用户通过表�
 文字生图 MVP 已于 2026-07-30 完成端到端验证：
 
 - 后端 14 项测试、前端 12 项测试和前端生产构建通过。
-- Rust/Tauri 4 项桌面集成测试通过。
+- 4 项 Rust 集成测试通过。
 - mocked E2E 已覆盖配置、checkpoint 列表、任务提交、完成状态和历史记录。
-- 已验证 release 桌面程序可启动、内置 Agent 健康接口可用，退出桌面程序时会清理托管 Agent。
-- MSI 和 NSIS 安装包均已构建，并确认包含 PyInstaller 后端资源。
+- 桌面 smoke 验证通过：release 程序可启动、内置 Agent 健康接口可用，退出桌面程序时会清理托管 Agent。
+- MVP 仅发布 NSIS 安装包；已验证静默安装、启动、健康检查、退出清理和卸载。
 
-Windows 构建产物位于：
+普通 Windows 用户请使用 NSIS 安装包：
 
 ```text
-src-tauri/target/release/ai-art-agent.exe
-src-tauri/target/release/bundle/msi/AI Art Agent_0.1.0_x64_en-US.msi
 src-tauri/target/release/bundle/nsis/AI Art Agent_0.1.0_x64-setup.exe
 ```
 
-安装包目前未做代码签名。正式分发前应配置 Windows 代码签名证书。
+安装包目前未做代码签名，Windows 可能显示安全提示。正式分发前应配置 Windows 代码签名证书。
 
 ## 功能
 
@@ -108,8 +106,10 @@ npm install
 .\backend\.venv\Scripts\python.exe -m pytest backend\tests -v
 npm.cmd --prefix frontend test -- --run
 npm.cmd --prefix frontend run build
-cargo test --manifest-path src-tauri\Cargo.toml --offline
+cargo test --manifest-path src-tauri\Cargo.toml
 ```
+
+首次运行应允许 Cargo 在线解析和下载依赖。只有确认本机 Cargo 缓存完整后，才可按需追加 `--offline`。
 
 构建内置后端：
 
@@ -117,13 +117,13 @@ cargo test --manifest-path src-tauri\Cargo.toml --offline
 .\scripts\package-backend.ps1
 ```
 
-构建 release 桌面程序以及 MSI、NSIS 安装包：
+构建 release 桌面程序和 NSIS 安装包：
 
 ```powershell
 .\scripts\tauri.ps1 build
 ```
 
-Tauri 会把 WiX/NSIS 构建工具缓存到已忽略的 `src-tauri/target/.tauri/`。首次构建需要访问对应工具的官方分发地址；网络较慢时可能需要预先准备该缓存。
+Tauri 会把 NSIS 构建工具缓存到已忽略的 `src-tauri/target/.tauri/`。首次构建需要访问对应工具的官方分发地址；网络较慢时可能需要预先准备该缓存。
 
 ## MVP 限制
 
@@ -131,5 +131,5 @@ Tauri 会把 WiX/NSIS 构建工具缓存到已忽略的 `src-tauri/target/.tauri
 - 只包含基础文字生图工作流。
 - 不恢复应用关闭时仍在运行的生成任务。
 - 远程结果继续由远程 ComfyUI 的 `/view` 接口提供。
-- 安装包未签名，也未在本轮验证中执行静默安装；验证使用 release 程序启动和安装包内容检查。
+- NSIS 安装包尚未签名；本轮已在隔离目录完成静默安装、启动和卸载验证。
 - 需要用户自行安装、启动并维护 ComfyUI 及其模型。

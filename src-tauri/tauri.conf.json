@@ -36,7 +36,7 @@
   "bundle": {
     "active": true,
     "useLocalToolsDir": true,
-    "targets": ["nsis", "msi"],
+    "targets": ["nsis"],
     "icon": ["icons/icon.png", "icons/icon.ico"],
     "resources": {
       "../backend/dist/ai-art-agent-backend.exe": "backend/ai-art-agent-backend.exe"
