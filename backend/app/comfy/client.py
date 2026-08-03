@@ -26,6 +26,18 @@ class ComfyClient:
         data = response.json()
         return data["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
 
+    async def object_info(self, node_name: str) -> dict[str, Any]:
+        response = await self._request("GET", f"/object_info/{node_name}")
+        return response.json()
+
+    async def manager_model_list(self) -> Any:
+        response = await self._request("GET", "/manager/model-list")
+        return response.json()
+
+    async def manager_install_model(self, model: Any) -> Any:
+        response = await self._request("POST", "/manager/queue/install_model", json={"model": model})
+        return response.json()
+
     async def queue_prompt(self, workflow: dict[str, Any], client_id: str) -> str:
         response = await self._request(
             "POST", "/prompt", json={"prompt": workflow, "client_id": client_id}

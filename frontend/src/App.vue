@@ -1,118 +1,213 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue"
-import { Image, Settings, History, Sparkles, CircleCheck, CircleX, LoaderCircle } from "lucide-vue-next"
-import { api, type Config, type GenerationRequest, type GenerationTask } from "./lib/api"
+import { Button, Layout, message } from "ant-design-vue"
+import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons-vue"
+import AppSidebar from "./components/AppSidebar.vue"
 import {
-  prepareDesktopAgent,
   selectComfyuiDirectory,
   startComfyui,
   stopComfyui,
   takeDesktopStartupError,
 } from "./lib/desktop"
+import { api, type Config, type GenerationTask, type ModelCatalogResponse, type ModelItem } from "./lib/api"
+import {
+  canSubmitGeneration,
+  createDefaultGenerationRequest,
+  getGenerationBlockedReason,
+  upsertTask,
+} from "./stores/generation"
+import type { Page } from "./types"
+import GenerateView from "./views/GenerateView.vue"
+import HistoryView from "./views/HistoryView.vue"
+import ModelsView from "./views/ModelsView.vue"
+import SettingsView from "./views/SettingsView.vue"
 
-type Page = "generate" | "history" | "settings"
+type SettingsAction = "test" | "save"
+
 const page = ref<Page>("generate")
+const sidebarCollapsed = ref(false)
 const connected = ref(false)
-const connectionMessage = ref("正在检测…")
+const connectionMessage = ref("尚未连接")
+const settingsError = ref("")
 const checkpoints = ref<string[]>([])
+const modelCatalog = ref<ModelCatalogResponse>({
+  connected: false,
+  manager_available: false,
+  message: "请先连接 ComfyUI",
+  local_models: [],
+  online_models: [],
+})
 const history = ref<GenerationTask[]>([])
 const currentTask = ref<GenerationTask | null>(null)
 const busy = ref(false)
+const testingConnection = ref(false)
+const loadingModels = ref(false)
+const downloadingModelId = ref("")
 const notice = ref("")
 const startupError = ref("")
 const localApiUrl = "http://127.0.0.1:8188"
-const config = reactive<Config>({ mode: "remote", comfyui_path: null, api_url: "http://127.0.0.1:8188" })
-const form = reactive<GenerationRequest>({
-  prompt: "",
-  negative_prompt: "",
-  checkpoint: "",
-  width: 1024,
-  height: 1024,
-  steps: 25,
-  cfg: 7,
-  seed: -1,
-  sampler: "euler",
-  scheduler: "normal",
-  batch_size: 1,
+
+const config = reactive<Config>({
+  mode: "remote",
+  comfyui_path: null,
+  api_url: "http://127.0.0.1:8188",
 })
 
-const canGenerate = computed(() => connected.value && form.prompt.trim() && form.checkpoint && !busy.value)
-const canSave = computed(
-  () =>
-    Boolean(config.api_url.trim()) &&
-    (config.mode === "remote" || Boolean(config.comfyui_path?.trim())),
+const form = reactive(createDefaultGenerationRequest())
+const canGenerate = computed(() => canSubmitGeneration(form, connected.value, busy.value))
+const generationBlockedReason = computed(() =>
+  getGenerationBlockedReason(form, connected.value, busy.value, checkpoints.value),
 )
 
-async function refreshConnection(): Promise<boolean> {
-  connectionMessage.value = "正在检测…"
+function clearActionState() {
+  settingsError.value = ""
+  notice.value = ""
+}
+
+function validateSettings(action: SettingsAction) {
+  settingsError.value = ""
+  if (config.mode === "local" && !config.comfyui_path?.trim()) {
+    const actionName = action === "test" ? "测试连接" : "保存设置"
+    settingsError.value = `${actionName}失败：请选择 ComfyUI 安装目录`
+    connected.value = false
+    message.warning(settingsError.value)
+    return false
+  }
+  if (config.mode === "remote" && !config.api_url.trim()) {
+    const actionName = action === "test" ? "测试连接" : "保存设置"
+    settingsError.value = `${actionName}失败：请输入 API 地址`
+    connected.value = false
+    message.warning(settingsError.value)
+    return false
+  }
+  return true
+}
+
+async function checkConnection() {
+  connectionMessage.value = "正在测试连接..."
   try {
     const state = await api.status()
     connected.value = state.connected
     connectionMessage.value = state.message
     checkpoints.value = state.connected ? await api.checkpoints() : []
     if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
-    return state.connected
   } catch (error) {
     connected.value = false
-    notice.value = error instanceof Error ? error.message : "连接失败"
+    checkpoints.value = []
     connectionMessage.value = error instanceof Error ? error.message : "连接失败"
-    return false
   }
 }
 
-async function waitForComfyui(): Promise<boolean> {
-  for (let attempt = 0; attempt < 60; attempt++) {
-    if (await refreshConnection()) return true
-    await new Promise((resolve) => setTimeout(resolve, 500))
-  }
-  return false
-}
-
-async function checkCandidateConnection(): Promise<boolean> {
+async function checkCandidateConnection() {
   const state = await api.checkStatus({ ...config })
   connected.value = state.connected
   connectionMessage.value = state.connected ? state.message : "ComfyUI 正在启动..."
-  if (state.connected && !form.checkpoint) {
-    const availableCheckpoints = await api.checkpoints()
-    checkpoints.value = availableCheckpoints
-    if (availableCheckpoints.length) form.checkpoint = availableCheckpoints[0]
-  }
   return state.connected
 }
 
-async function waitForCandidateComfyui(): Promise<boolean> {
+async function waitForCandidateComfyui() {
   for (let attempt = 0; attempt < 60; attempt++) {
     if (await checkCandidateConnection()) return true
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await new Promise(resolve => setTimeout(resolve, 500))
   }
   return false
 }
 
+async function refreshModels() {
+  loadingModels.value = true
+  try {
+    const catalog = await api.models()
+    modelCatalog.value = catalog
+    connected.value = catalog.connected
+    connectionMessage.value = catalog.message
+    checkpoints.value = catalog.local_models
+      .filter(item => item.kind === "checkpoint")
+      .map(item => item.filename)
+    if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "模型目录加载失败")
+  } finally {
+    loadingModels.value = false
+  }
+}
+
+function selectModel(model: ModelItem) {
+  if (model.kind !== "checkpoint") {
+    message.info("当前只支持选择 checkpoint 用于图片生成")
+    return
+  }
+  form.checkpoint = model.filename
+  message.success(`已选择模型：${model.filename}`)
+}
+
+// Download is intentionally allowed only after local ComfyUI path is configured.
+async function downloadModel(id: string) {
+  if (config.mode !== "local" || !config.comfyui_path?.trim()) {
+    message.warning("请先在连接设置选择本地 ComfyUI 目录")
+    return
+  }
+
+  downloadingModelId.value = id
+  try {
+    const model = await api.downloadModel(id)
+    message.success(`已添加下载任务：${model.name}`)
+    await refreshModels()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "模型下载失败")
+  } finally {
+    downloadingModelId.value = ""
+  }
+}
+
+// User-triggered test: show one toast plus one status area, no duplicate alert.
+async function refreshConnection() {
+  notice.value = ""
+  if (!validateSettings("test")) return
+
+  testingConnection.value = true
+  try {
+    if (config.mode === "local") {
+      config.api_url = localApiUrl
+      notice.value = "正在启动并连接本地 ComfyUI..."
+      await startComfyui(config.comfyui_path ?? "")
+      const ready = await waitForCandidateComfyui()
+      notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
+      return
+    }
+
+    await checkConnection()
+    if (connected.value) {
+      message.success("测试连接成功")
+      await refreshModels()
+    } else {
+      message.error(`测试连接失败：${connectionMessage.value}`)
+    }
+  } finally {
+    testingConnection.value = false
+  }
+}
+
+// Save settings only after validating the active connection mode.
 async function saveSettings() {
+  notice.value = ""
+  if (!validateSettings("save")) return
+
   busy.value = true
   try {
-    if (config.mode === "local") config.api_url = localApiUrl
-    if (config.mode === "local" && config.comfyui_path) {
-      await startComfyui(config.comfyui_path)
-      notice.value = "正在等待 ComfyUI 启动..."
-      const initialReady = await waitForCandidateComfyui()
-      let ready = initialReady
-      notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
-      notice.value = "正在等待 ComfyUI 启动..."
-      ready = await waitForCandidateComfyui()
+    if (config.mode === "local") {
+      config.api_url = localApiUrl
+      notice.value = "正在启动并连接本地 ComfyUI..."
+      await startComfyui(config.comfyui_path ?? "")
+      const ready = await waitForCandidateComfyui()
       if (!ready) throw new Error("ComfyUI 启动超时，请确认启动脚本和模型环境正常")
     } else {
       await stopComfyui()
     }
-    await api.saveConfig({ ...config })
-    if (config.mode === "local" && config.comfyui_path) {
-      notice.value = "设置已保存，正在等待 ComfyUI 启动…"
-      const ready = await waitForComfyui()
-      notice.value = ready ? "设置已保存" : "设置已保存，但 ComfyUI 启动超时"
-    } else {
-      notice.value = "设置已保存"
-      await refreshConnection()
-    }
+    await api.saveConfig(config)
+    notice.value = "设置已保存"
+    message.success("设置已保存")
+    await checkConnection()
+    await refreshModels()
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "保存失败"
   } finally {
@@ -120,81 +215,33 @@ async function saveSettings() {
   }
 }
 
-async function testConnection() {
-  busy.value = true
-  connectionMessage.value = "正在检测…"
-  try {
-    if (config.mode === "local") {
-      config.api_url = localApiUrl
-      if (!config.comfyui_path) throw new Error("请先选择 ComfyUI 目录")
-      notice.value = "正在启动并连接本地 ComfyUI..."
-      await startComfyui(config.comfyui_path)
-    }
-    if (config.mode === "local") {
-      notice.value = "正在等待 ComfyUI 启动..."
-      const ready = await waitForCandidateComfyui()
-      notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
-      busy.value = false
-      return
-    }
-    const state = await api.checkStatus({ ...config })
-    connected.value = state.connected
-    connectionMessage.value = state.message
-    checkpoints.value = state.connected ? await api.checkpoints() : []
-    if (!form.checkpoint && checkpoints.value.length) {
-      form.checkpoint = checkpoints.value[0]
-    }
-    notice.value = state.connected ? "连接成功" : state.message
-  } catch (error) {
-    connected.value = false
-    connectionMessage.value = error instanceof Error ? error.message : "连接失败"
-  }
-  notice.value = connectionMessage.value
-  busy.value = false
-}
-
-function setMode(mode: Config["mode"]) {
-  config.mode = mode
-  if (mode === "local") config.api_url = localApiUrl
-}
-
 async function chooseComfyuiDirectory() {
   try {
     const selected = await selectComfyuiDirectory()
-    if (selected) config.comfyui_path = selected
+    if (selected) {
+      config.comfyui_path = selected
+      clearActionState()
+    }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : String(error)
   }
 }
 
+// Submit a generation task and keep local history in sync.
 async function generate() {
   busy.value = true
   notice.value = ""
   try {
     const task = await api.generate(form)
     currentTask.value = task
-    history.value.unshift(task)
+    history.value = upsertTask(history.value, task)
     notice.value = `任务已提交：${task.prompt_id}`
-    let failures = 0
-    while (
-      currentTask.value &&
-      !["completed", "failed"].includes(currentTask.value.status)
-    ) {
-      const delay = failures
-        ? Math.min(1000 * 2 ** failures, 5000)
-        : 1000
-      await new Promise((resolve) => setTimeout(resolve, delay))
-      try {
-        currentTask.value = await api.generation(task.id)
-        const index = history.value.findIndex((item) => item.id === task.id)
-        if (index >= 0) history.value[index] = currentTask.value
-        if (failures) notice.value = ""
-        failures = 0
-      } catch (error) {
-        failures += 1
-        const detail = error instanceof Error ? error.message : String(error)
-        notice.value = `任务状态暂时无法更新，正在重试：${detail}`
-      }
+
+    for (let attempt = 0; attempt < 360 && currentTask.value.status !== "completed"; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      currentTask.value = await api.generation(task.id)
+      history.value = upsertTask(history.value, currentTask.value)
+      if (currentTask.value.status === "failed") break
     }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "提交失败"
@@ -203,146 +250,81 @@ async function generate() {
   }
 }
 
-async function loadInitialState() {
+onMounted(async () => {
   startupError.value = ""
-  connectionMessage.value = "正在检测…"
   try {
     const desktopError = takeDesktopStartupError()
     if (desktopError) throw new Error(desktopError)
     Object.assign(config, await api.config())
     history.value = await api.history()
-    await refreshConnection()
+    await refreshModels()
+    if (config.mode === "remote" && config.api_url.trim()) await checkConnection()
   } catch (error) {
     connected.value = false
     startupError.value = error instanceof Error ? error.message : String(error)
     connectionMessage.value = startupError.value
     notice.value = `本地 Agent 不可用：${startupError.value}`
   }
-}
-
-async function retryInitialState() {
-  startupError.value = ""
-  try {
-    await prepareDesktopAgent()
-    await loadInitialState()
-  } catch (error) {
-    connected.value = false
-    startupError.value = error instanceof Error ? error.message : String(error)
-    connectionMessage.value = startupError.value
-    notice.value = `本地 Agent 不可用：${startupError.value}`
-  }
-}
-
-onMounted(loadInitialState)
+})
 </script>
 
 <template>
-  <div class="shell">
-    <aside>
-      <div class="brand"><span><Sparkles :size="19" /></span><div>AI Art Agent<small>创作工作台</small></div></div>
-      <nav>
-        <button :class="{ active: page === 'generate' }" @click="page = 'generate'"><Image :size="18" />图片生成</button>
-        <button :class="{ active: page === 'history' }" @click="page = 'history'"><History :size="18" />历史记录</button>
-        <button :class="{ active: page === 'settings' }" @click="page = 'settings'"><Settings :size="18" />连接设置</button>
-      </nav>
-      <div class="connection" :class="{ online: connected }">
-        <CircleCheck v-if="connected" :size="18" /><CircleX v-else :size="18" />
-        <div><strong>{{ connected ? "ComfyUI 已连接" : "ComfyUI 未连接" }}</strong><small>{{ connectionMessage }}</small><button v-if="startupError" class="retry" @click="retryInitialState">重试</button></div>
-      </div>
-    </aside>
+  <Layout class="app-layout">
+    <AppSidebar v-model:page="page" :collapsed="sidebarCollapsed" :connected="connected" />
 
-    <main>
-      <template v-if="page === 'generate'">
-        <header><div><p class="eyebrow">CREATE</p><h1>生成图片</h1><p>描述你的想法，其余交给工作流。</p></div></header>
-        <div class="grid">
-          <section class="card form-card">
-            <label>画面描述<textarea v-model="form.prompt" rows="5" placeholder="例如：薄雾中的东方古城，电影级光影…"></textarea></label>
-            <label>排除内容<textarea v-model="form.negative_prompt" rows="2" placeholder="模糊、低质量、文字…"></textarea></label>
-            <div class="row">
-              <label>模型<select v-model="form.checkpoint"><option disabled value="">请选择 checkpoint</option><option v-for="item in checkpoints" :key="item">{{ item }}</option></select></label>
-              <label>生成数量<input v-model.number="form.batch_size" type="number" min="1" max="8" /></label>
-            </div>
-            <div class="row thirds">
-              <label>宽度<input v-model.number="form.width" type="number" step="64" /></label>
-              <label>高度<input v-model.number="form.height" type="number" step="64" /></label>
-              <label>随机种子<input v-model.number="form.seed" type="number" /></label>
-            </div>
-            <details>
-              <summary>高级参数</summary>
-              <div class="row thirds advanced">
-                <label>步数<input v-model.number="form.steps" type="number" /></label>
-                <label>CFG<input v-model.number="form.cfg" type="number" step="0.5" /></label>
-                <label>采样器<select v-model="form.sampler"><option>euler</option><option>dpmpp_2m</option></select></label>
-                <label>调度器<select v-model="form.scheduler"><option>normal</option><option>karras</option><option>exponential</option><option>sgm_uniform</option></select></label>
-              </div>
-            </details>
-            <button class="primary" :disabled="!canGenerate" @click="generate"><LoaderCircle v-if="busy" class="spin" :size="18" /><Sparkles v-else :size="18" />{{ busy ? "正在提交" : "开始生成" }}</button>
-            <p v-if="notice" class="notice">{{ notice }}</p>
-          </section>
-          <section class="card preview">
-            <div v-if="currentTask?.outputs.length" class="result-gallery">
-              <img
-                v-for="(output, index) in currentTask.outputs"
-                :key="output"
-                :src="output"
-                :alt="`生成结果 ${index + 1}`"
-              />
-            </div>
-            <div v-else class="empty">
-              <CircleX v-if="currentTask?.status === 'failed'" :size="34" />
-              <LoaderCircle v-else-if="currentTask" class="spin" :size="34" />
-              <Image v-else :size="34" />
-              <strong>{{ currentTask?.status === "failed" ? "生成失败" : currentTask ? "正在生成" : "等待创作" }}</strong>
-              <p v-if="currentTask?.status === 'failed'">{{ currentTask.error }}</p>
-              <p v-else>{{ currentTask ? `${currentTask.status} · ${currentTask.progress}%` : "生成结果会显示在这里" }}</p>
-            </div>
-          </section>
-        </div>
-      </template>
+    <Layout class="app-main-layout">
+      <Layout.Header class="app-header">
+        <Button
+          type="text"
+          class="header-trigger"
+          :aria-label="sidebarCollapsed ? '展开菜单' : '收起菜单'"
+          @click="sidebarCollapsed = !sidebarCollapsed"
+        >
+          <MenuUnfoldOutlined v-if="sidebarCollapsed" />
+          <MenuFoldOutlined v-else />
+        </Button>
+      </Layout.Header>
 
-      <template v-else-if="page === 'history'">
-        <header><div><p class="eyebrow">LIBRARY</p><h1>历史记录</h1><p>最近提交的生成任务。</p></div></header>
-        <div class="history-grid">
-          <article v-for="item in history" :key="item.id" class="card history-item">
-            <div class="thumb thumb-grid">
-              <template v-if="item.outputs.length">
-                <img
-                  v-for="(output, index) in item.outputs"
-                  :key="output"
-                  :src="output"
-                  :alt="`历史生成结果 ${index + 1}`"
-                />
-              </template>
-              <Image v-else :size="28" />
-            </div><strong>{{ item.request.prompt }}</strong>
-            <small>{{ item.request.checkpoint }} · {{ item.request.width }}×{{ item.request.height }}</small>
-            <span class="badge">{{ item.status }}</span>
-          </article>
-          <div v-if="!history.length" class="card empty-list">还没有生成记录</div>
-        </div>
-      </template>
-
-      <template v-else-if="page === 'settings'">
-        <header><div><p class="eyebrow">SETTINGS</p><h1>连接设置</h1><p>选择本机 ComfyUI，或连接另一台电脑上的 ComfyUI。</p></div></header>
-        <section class="card settings-card">
-          <div class="segmented"><button :class="{ selected: config.mode === 'local' }" @click="setMode('local')">本地 ComfyUI</button><button :class="{ selected: config.mode === 'remote' }" @click="setMode('remote')">远程 API</button></div>
-          <label v-if="config.mode === 'local'">ComfyUI 目录<div class="path-row"><input v-model="config.comfyui_path" placeholder="D:\ComfyUI" /><button class="secondary" @click="chooseComfyuiDirectory">选择目录</button></div></label>
-          <label v-if="config.mode === 'remote'">API 地址<input v-model="config.api_url" placeholder="http://127.0.0.1:8188" /></label>
-          <div class="actions"><button class="secondary" :disabled="busy" @click="testConnection">{{ config.mode === 'local' ? "启动并连接" : "测试连接" }}</button><button class="primary compact" :disabled="busy || !canSave" @click="saveSettings">保存设置</button></div>
-          <p v-if="notice" class="notice">{{ notice }}</p>
-        </section>
-      </template>
-
-      <template v-else>
-        <header><div><p class="eyebrow">SETTINGS</p><h1>连接设置</h1><p>连接本机或其他电脑上的 ComfyUI。</p></div></header>
-        <section class="card settings-card">
-          <div class="segmented"><button :class="{ selected: config.mode === 'local' }" @click="setMode('local')">本地 ComfyUI</button><button :class="{ selected: config.mode === 'remote' }" @click="setMode('remote')">远程 API</button></div>
-          <label v-if="config.mode === 'local'">ComfyUI 安装目录<div class="path-row"><input v-model="config.comfyui_path" placeholder="D:\ComfyUI" /><button class="secondary" @click="chooseComfyuiDirectory">选择目录</button></div></label>
-          <label>API 地址<input v-model="config.api_url" placeholder="http://127.0.0.1:8188" /></label>
-          <div class="actions"><button class="secondary" @click="testConnection">测试连接</button><button class="primary compact" :disabled="busy || !canSave" @click="saveSettings">保存设置</button></div>
-          <p v-if="notice" class="notice">{{ notice }}</p>
-        </section>
-      </template>
-    </main>
-  </div>
+      <Layout.Content class="app-content">
+        <GenerateView
+          v-if="page === 'generate'"
+          :form="form"
+          :checkpoints="checkpoints"
+          :current-task="currentTask"
+          :can-generate="canGenerate"
+          :blocked-reason="generationBlockedReason"
+          :busy="busy"
+          :notice="notice"
+          @go-models="page = 'models'"
+          @generate="generate"
+        />
+        <ModelsView
+          v-else-if="page === 'models'"
+          :config="config"
+          :catalog="modelCatalog"
+          :selected-checkpoint="form.checkpoint"
+          :loading="loadingModels"
+          :downloading-id="downloadingModelId"
+          @refresh="refreshModels"
+          @select="selectModel"
+          @download="downloadModel"
+        />
+        <HistoryView v-else-if="page === 'history'" :history="history" />
+        <SettingsView
+          v-else
+          :config="config"
+          :connected="connected"
+          :connection-message="connectionMessage"
+          :busy="busy"
+          :testing-connection="testingConnection"
+          :notice="notice"
+          :settings-error="settingsError"
+          @clear="clearActionState"
+          @choose-directory="chooseComfyuiDirectory"
+          @refresh="refreshConnection"
+          @save="saveSettings"
+        />
+      </Layout.Content>
+    </Layout>
+  </Layout>
 </template>

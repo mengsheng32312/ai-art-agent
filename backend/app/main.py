@@ -11,7 +11,15 @@ import uvicorn
 from .comfy.client import ComfyClient
 from .comfy.workflow import build_text_to_image_workflow
 from .history import HistoryStore
-from .schemas import ConnectionStatus, GenerationRequest, GenerationTask
+from .models import build_model_catalog, request_manager_download
+from .schemas import (
+    ConnectionStatus,
+    GenerationRequest,
+    GenerationTask,
+    ModelCatalogResponse,
+    ModelDownloadRequest,
+    ModelItem,
+)
 from .settings import AppConfig, ConfigStore, default_data_dir
 
 
@@ -194,6 +202,24 @@ def create_app(
     @app.get("/api/history", response_model=list[GenerationTask])
     def get_history() -> list[GenerationTask]:
         return history.list()
+
+    @app.get("/api/models/catalog", response_model=ModelCatalogResponse)
+    async def get_model_catalog() -> ModelCatalogResponse:
+        return await build_model_catalog(store.load(), comfy())
+
+    @app.post("/api/models/download", response_model=ModelItem)
+    async def post_model_download(request: ModelDownloadRequest) -> ModelItem:
+        config = store.load()
+        if config.mode != "local":
+            raise HTTPException(status_code=400, detail="请切换到本地模式后下载模型")
+        try:
+            return await request_manager_download(request.model_id, config, comfy())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"模型下载失败：{exc}") from exc
 
     return app
 

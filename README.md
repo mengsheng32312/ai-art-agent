@@ -27,6 +27,7 @@ src-tauri/target/release/bundle/nsis/AI Art Agent_0.1.0_x64-setup.exe
 - 自动启动桌面内置 FastAPI Agent。
 - 本地模式可启动普通或 Windows Portable 版 ComfyUI。
 - 检测连接并读取 checkpoint 列表。
+- 模型管理页可读取 ComfyUI 当前可用模型，并在 ComfyUI Manager 可用时展示在线模型库。
 - 提交文字生图基础参数和高级参数。
 - 展示 queued、running、completed、failed 状态和错误。
 - 预览结果并持久化生成历史。
@@ -92,6 +93,12 @@ npm install
 
 连接成功后，在“图片生成”页选择 checkpoint、填写提示词和参数并提交；结果可在当前任务和“历史记录”中查看。
 
+## 模型管理
+
+- 本地模型区读取 ComfyUI 实际可用的 checkpoint、LoRA、VAE 和 ControlNet。
+- 在线模型库依赖 ComfyUI Manager；未安装 Manager 时只展示本地模型。
+- 本地模式并选择 ComfyUI 目录后，可判断模型文件是否已存在，并提交下载任务。
+
 ## 验证
 
 运行后端、前端和当前机器可用的 Rust 检查：
@@ -127,7 +134,6 @@ Tauri 会把 NSIS 构建工具缓存到已忽略的 `src-tauri/target/.tauri/`�
 
 ## MVP 限制
 
-- 不下载或管理模型、LoRA。
 - 只包含基础文字生图工作流。
 - 不恢复应用关闭时仍在运行的生成任务。
 - 远程结果继续由远程 ComfyUI 的 `/view` 接口提供。
