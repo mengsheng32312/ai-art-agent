@@ -28,6 +28,27 @@ export type GenerationTask = {
   error: string | null
 }
 
+export type ModelItem = {
+  id: string
+  name: string
+  kind: "checkpoint" | "lora" | "controlnet" | "vae"
+  filename: string
+  source: "comfyui" | "local" | "manager"
+  installed: boolean
+  path: string | null
+  description: string
+  preview_url: string | null
+  size_label: string | null
+}
+
+export type ModelCatalogResponse = {
+  connected: boolean
+  manager_available: boolean
+  message: string
+  local_models: ModelItem[]
+  online_models: ModelItem[]
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -50,4 +71,7 @@ export const api = {
     request<GenerationTask>("/generations", { method: "POST", body: JSON.stringify(data) }),
   generation: (id: string) => request<GenerationTask>(`/generations/${id}`),
   history: () => request<GenerationTask[]>("/history"),
+  models: () => request<ModelCatalogResponse>("/models/catalog"),
+  downloadModel: (model_id: string) =>
+    request<ModelItem>("/models/download", { method: "POST", body: JSON.stringify({ model_id }) }),
 }

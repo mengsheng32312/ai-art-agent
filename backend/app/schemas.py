@@ -30,3 +30,31 @@ class GenerationTask(BaseModel):
     prompt_id: str | None = None
     outputs: list[str] = []
     error: str | None = None
+
+
+ModelKind = Literal["checkpoint", "lora", "controlnet", "vae"]
+
+
+class ModelItem(BaseModel):
+    id: str
+    name: str
+    kind: ModelKind
+    filename: str
+    source: Literal["comfyui", "local", "manager"]
+    installed: bool
+    path: str | None = None
+    description: str
+    preview_url: str | None = None
+    size_label: str | None = None
+
+
+class ModelCatalogResponse(BaseModel):
+    connected: bool
+    manager_available: bool
+    message: str
+    local_models: list[ModelItem] = []
+    online_models: list[ModelItem] = []
+
+
+class ModelDownloadRequest(BaseModel):
+    model_id: str = Field(min_length=1)
