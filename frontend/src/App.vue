@@ -140,6 +140,17 @@ function selectModel(model: ModelItem) {
   message.success(`已选择模型：${model.filename}`)
 }
 
+async function ensureLocalComfyuiReady() {
+  config.api_url = localApiUrl
+  notice.value = "正在检查本地 ComfyUI..."
+  if (await checkCandidateConnection()) return true
+
+  notice.value = "正在启动本地 ComfyUI..."
+  await startComfyui(config.comfyui_path ?? "")
+  notice.value = "正在等待 ComfyUI 启动..."
+  return waitForCandidateComfyui()
+}
+
 // Download is intentionally allowed only after local ComfyUI path is configured.
 async function downloadModel(id: string) {
   if (config.mode !== "local" || !config.comfyui_path?.trim()) {
@@ -167,11 +178,13 @@ async function refreshConnection() {
   testingConnection.value = true
   try {
     if (config.mode === "local") {
-      config.api_url = localApiUrl
+      const ready = await ensureLocalComfyuiReady()
       notice.value = "正在启动并连接本地 ComfyUI..."
-      await startComfyui(config.comfyui_path ?? "")
-      const ready = await waitForCandidateComfyui()
       notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
+      if (ready) {
+        message.success("测试连接成功")
+        await refreshModels()
+      }
       return
     }
 
@@ -195,10 +208,8 @@ async function saveSettings() {
   busy.value = true
   try {
     if (config.mode === "local") {
-      config.api_url = localApiUrl
+      const ready = await ensureLocalComfyuiReady()
       notice.value = "正在启动并连接本地 ComfyUI..."
-      await startComfyui(config.comfyui_path ?? "")
-      const ready = await waitForCandidateComfyui()
       if (!ready) throw new Error("ComfyUI 启动超时，请确认启动脚本和模型环境正常")
     } else {
       await stopComfyui()
