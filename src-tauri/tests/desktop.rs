@@ -1,6 +1,5 @@
 use std::ffi::OsString;
 use std::fs;
-use std::path::PathBuf;
 #[cfg(windows)]
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -64,18 +63,29 @@ fn accepts_a_portable_root_with_a_launcher_batch_file() {
 }
 
 #[test]
-fn uses_the_portable_launcher_batch_file_when_available() {
+fn manages_the_portable_python_process_when_a_launcher_batch_file_is_available() {
     let root = tempdir().expect("temporary directory");
-    let launcher = root.path().join("run_nvidia_gpu.bat");
-    fs::write(&launcher, "").expect("create launcher");
+    let comfy_dir = root.path().join("ComfyUI");
+    let embedded_python = root.path().join("python_embeded").join("python.exe");
+    fs::create_dir_all(&comfy_dir).expect("create ComfyUI directory");
+    fs::create_dir_all(embedded_python.parent().unwrap()).expect("create Python directory");
+    fs::write(root.path().join("run_nvidia_gpu.bat"), "").expect("create launcher");
+    fs::write(comfy_dir.join("main.py"), "").expect("create entry point");
+    fs::write(&embedded_python, "").expect("create embedded Python");
 
     let spec = comfyui_process_spec(root.path()).expect("portable launcher spec");
 
-    assert_eq!(spec.program, PathBuf::from("cmd.exe"));
-    assert_eq!(spec.current_dir, root.path());
+    assert_eq!(spec.program, embedded_python);
+    assert_eq!(spec.current_dir, comfy_dir);
     assert_eq!(
         spec.args,
-        vec![OsString::from("/C"), launcher.into_os_string(),]
+        vec![
+            OsString::from("main.py"),
+            OsString::from("--listen"),
+            OsString::from("127.0.0.1"),
+            OsString::from("--port"),
+            OsString::from("8188"),
+        ]
     );
 }
 

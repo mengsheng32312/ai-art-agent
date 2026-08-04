@@ -99,15 +99,16 @@ pub fn validate_comfyui_directory_path(root: &Path) -> Result<(), String> {
     if !root.is_dir() {
         return Err("所选路径不是目录".into());
     }
-    comfyui_launcher_batch(root)
-        .or_else(|| comfyui_entry_point(root))
+    comfyui_entry_point(root)
+        .or_else(|| comfyui_launcher_batch(root))
         .map(|_| ())
         .ok_or_else(|| "目录中未找到 ComfyUI 的 main.py 或 portable 启动 .bat".into())
 }
 
 pub fn comfyui_process_spec(root: &Path) -> Result<ProcessSpec, String> {
     validate_comfyui_directory_path(root)?;
-    if let Some(launcher) = comfyui_launcher_batch(root) {
+    if comfyui_entry_point(root).is_none() {
+        let launcher = comfyui_launcher_batch(root).expect("validated ComfyUI launcher");
         return Ok(ProcessSpec {
             program: PathBuf::from("cmd.exe"),
             current_dir: root.to_path_buf(),
