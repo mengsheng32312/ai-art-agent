@@ -183,7 +183,6 @@ async function refreshConnection() {
       notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
       if (ready) {
         message.success("测试连接成功")
-        await refreshModels()
       }
       return
     }
