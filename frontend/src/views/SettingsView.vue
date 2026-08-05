@@ -11,6 +11,7 @@ const props = defineProps<{
   busy: boolean
   testingConnection: boolean
   notice: string
+  noticeType: "info" | "success" | "error"
   settingsError: string
 }>()
 
@@ -18,7 +19,6 @@ const emit = defineEmits<{
   clear: []
   chooseDirectory: []
   refresh: []
-  save: []
 }>()
 
 const modeOptions = [
@@ -65,6 +65,23 @@ const shouldShowConnectionDetail = computed(() => props.testingConnection || pro
         <Input v-model:value="config.api_url" placeholder="http://127.0.0.1:8188" @input="emit('clear')" />
       </Form.Item>
 
+      <Form.Item
+        v-if="config.mode === 'remote'"
+        label="模型下载目录"
+        :validate-status="settingsError ? 'error' : undefined"
+        :help="settingsError || undefined"
+      >
+        <Space.Compact block>
+          <Input
+            :value="config.comfyui_path ?? ''"
+            placeholder="D:\ComfyUI\models 等本地目录"
+            @update:value="value => { config.comfyui_path = value; emit('clear') }"
+          />
+          <Button @click="emit('chooseDirectory')">选择目录</Button>
+        </Space.Compact>
+        <div class="field-help">远程模式下，从在线模型库下载的模型会保存到此目录的 models 子目录中。</div>
+      </Form.Item>
+
       <Alert
         show-icon
         :type="connected ? 'success' : 'info'"
@@ -74,10 +91,9 @@ const shouldShowConnectionDetail = computed(() => props.testingConnection || pro
 
       <div class="settings-actions">
         <Button :loading="testingConnection" :disabled="busy" @click="emit('refresh')">测试连接</Button>
-        <Button type="primary" :loading="busy" :disabled="testingConnection" @click="emit('save')">保存设置</Button>
       </div>
 
-      <Alert v-if="notice === '设置已保存'" class="form-notice" show-icon type="success" :message="notice" />
+      <Alert v-if="notice" class="form-notice" show-icon :type="noticeType" :message="notice" />
     </Form>
   </Card>
 </template>

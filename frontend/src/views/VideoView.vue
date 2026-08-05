@@ -16,13 +16,14 @@ defineProps<{
   busy: boolean
   notice: string
   noticeType: "info" | "success" | "error"
+  motionModels: string[]
 }>()
 
 const emit = defineEmits<{ generate: []; goModels: [] }>()
 </script>
 
 <template>
-  <PageHeader title="生成图片" description="填写提示词和常用参数，提交到预设工作流。" />
+  <PageHeader title="生成视频" description="填写提示词和常用参数，用 AnimateDiff 生成动画视频。" />
   <Row :gutter="[20, 20]">
     <Col :xs="24" :xl="11">
       <GenerationForm
@@ -35,7 +36,8 @@ const emit = defineEmits<{ generate: []; goModels: [] }>()
         :busy="busy"
         :notice="notice"
         :notice-type="noticeType"
-        :mode="'image'"
+        :mode="'video'"
+        :motion-models="motionModels"
         @go-models="emit('goModels')"
         @generate="emit('generate')"
       />

@@ -29,3 +29,21 @@ class HistoryStore:
             encoding="utf-8",
         )
         temp.replace(self.path)
+
+    def remove(self, task_id: str) -> bool:
+        items = self.list()
+        remaining = [item for item in items if item.id != task_id]
+        if len(remaining) == len(items):
+            return False
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temp = self.path.with_suffix(".tmp")
+        temp.write_text(
+            json.dumps(
+                [item.model_dump() for item in remaining],
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        temp.replace(self.path)
+        return True

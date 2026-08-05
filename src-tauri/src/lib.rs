@@ -485,6 +485,24 @@ fn validate_comfyui_directory(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_in_explorer(path: String) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        Command::new("explorer.exe")
+            .arg(format!("/select,{}", path))
+            .creation_flags(0x08000000)
+            .spawn()
+            .map_err(|error| format!("无法打开文件夹：{error}"))?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        Err("当前平台不支持打开文件夹".into())
+    }
+}
+
+#[tauri::command]
 fn start_local_agent(
     app: tauri::AppHandle,
     processes: State<'_, ManagedProcesses>,
@@ -515,6 +533,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             select_comfyui_directory,
             validate_comfyui_directory,
+            open_in_explorer,
             start_local_agent,
             start_comfyui,
             stop_comfyui,

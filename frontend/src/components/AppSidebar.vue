@@ -9,6 +9,7 @@ import {
   PictureOutlined,
   SettingOutlined,
   ThunderboltOutlined,
+  VideoCameraOutlined,
 } from "@ant-design/icons-vue"
 import type { Page } from "../types"
 
@@ -26,6 +27,7 @@ const emit = defineEmits<{
 const selectedKeys = computed(() => [props.page])
 const menuItems = [
   { key: "generate", icon: () => h(PictureOutlined), label: "图片生成" },
+  { key: "video", icon: () => h(VideoCameraOutlined), label: "视频生成" },
   { key: "models", icon: () => h(AppstoreOutlined), label: "模型管理" },
   { key: "history", icon: () => h(HistoryOutlined), label: "历史记录" },
   { key: "settings", icon: () => h(SettingOutlined), label: "连接设置" },

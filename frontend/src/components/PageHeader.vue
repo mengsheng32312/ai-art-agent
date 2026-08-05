@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { PageHeader } from "ant-design-vue"
-
 defineProps<{
   title: string
   description: string
@@ -8,5 +6,8 @@ defineProps<{
 </script>
 
 <template>
-  <PageHeader class="page-heading" :title="title" :sub-title="description" />
+  <header class="page-heading">
+    <h1 class="page-title">{{ title }}</h1>
+    <p class="page-description">{{ description }}</p>
+  </header>
 </template>

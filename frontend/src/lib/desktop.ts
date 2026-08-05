@@ -94,3 +94,9 @@ export async function stopComfyui(): Promise<void> {
   if (!tauri) return
   await tauri.invoke<void>("stop_comfyui")
 }
+
+export async function openInExplorer(path: string): Promise<void> {
+  const tauri = core()
+  if (!tauri) return
+  await tauri.invoke<void>("open_in_explorer", { path })
+}

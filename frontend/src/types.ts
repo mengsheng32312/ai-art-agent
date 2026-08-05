@@ -1,1 +1,1 @@
-export type Page = "generate" | "models" | "history" | "settings"
+export type Page = "generate" | "video" | "models" | "history" | "settings"

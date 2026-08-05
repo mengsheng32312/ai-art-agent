@@ -4,12 +4,14 @@ from collections.abc import Callable
 from uuid import uuid4
 from urllib.parse import urlencode
 
+import httpx
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
 import uvicorn
 
 from .comfy.client import ComfyClient
-from .comfy.workflow import build_text_to_image_workflow
+from .comfy.workflow import build_text_to_image_workflow, build_text_to_video_workflow
 from .history import HistoryStore
 from .models import build_model_catalog, request_manager_download
 from .schemas import (
@@ -76,6 +78,49 @@ def create_app(
     async def comfy_status() -> ConnectionStatus:
         return await connection_status(store.load())
 
+    @app.get("/api/comfy/view")
+    async def comfy_view(
+        filename: str, subfolder: str = "", type: str = "output"
+    ) -> Response:
+        """代理远程 ComfyUI 的 /view 图片，避免浏览器直连隧道不稳定。"""
+        base = store.load().api_url.rstrip("/")
+        params: dict[str, str] = {"filename": filename, "type": type}
+        if subfolder:
+            params["subfolder"] = subfolder
+        try:
+            async with httpx.AsyncClient(timeout=60, trust_env=False) as client:
+                response = await client.get(f"{base}/view", params=params)
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=503, detail=f"远程图片获取失败：{exc}"
+            ) from exc
+        if response.status_code == 530:
+            raise HTTPException(
+                status_code=503,
+                detail="远程 ComfyUI 暂时不可用：连接隧道已断开，请重新运行 Colab 并更新 API 地址",
+            )
+        response.raise_for_status()
+        return Response(
+            content=response.content,
+            media_type=response.headers.get(
+                "content-type", "application/octet-stream"
+            ),
+        )
+
+    @app.get("/api/comfy/local-model-image")
+    def local_model_image(path: str) -> FileResponse:
+        """返回本地 ComfyUI 模型目录中的预览图文件。"""
+        config = store.load()
+        if not config.comfyui_path:
+            raise HTTPException(status_code=400, detail="未配置本地目录")
+        root = Path(config.comfyui_path).resolve()
+        image_path = Path(path).resolve()
+        if image_path != root and root not in image_path.parents:
+            raise HTTPException(status_code=403, detail="路径越界")
+        if not image_path.is_file():
+            raise HTTPException(status_code=404, detail="预览图不存在")
+        return FileResponse(image_path)
+
     @app.post("/api/comfy/status", response_model=ConnectionStatus)
     async def check_candidate_comfy_status(config: AppConfig) -> ConnectionStatus:
         return await connection_status(config)
@@ -87,6 +132,25 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    @app.get("/api/comfy/video-models", response_model=list[str])
+    async def video_models() -> list[str]:
+        try:
+            data = await comfy().object_info("ADE_AnimateDiffLoaderGen1")
+            raw = data["ADE_AnimateDiffLoaderGen1"]["input"]["required"]["model_name"]
+            if isinstance(raw, list) and len(raw) == 2 and isinstance(raw[1], dict):
+                return raw[1].get("options", [])
+            return raw[0] if isinstance(raw, list) else []
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.get("/api/comfy/vae-models", response_model=list[str])
+    async def vae_models() -> list[str]:
+        try:
+            data = await comfy().object_info("VAELoader")
+            return data["VAELoader"]["input"]["required"]["vae_name"][0]
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     @app.post(
         "/api/generations",
         response_model=GenerationTask,
@@ -95,10 +159,17 @@ def create_app(
     async def create_generation(request: GenerationRequest) -> GenerationTask:
         task_id = str(uuid4())
         try:
-            prompt_id = await comfy().queue_prompt(
-                build_text_to_image_workflow(
+            workflow = (
+                build_text_to_video_workflow(
                     request, output_prefix=f"AIArtAgent/{task_id}"
-                ),
+                )
+                if request.media_type == "video"
+                else build_text_to_image_workflow(
+                    request, output_prefix=f"AIArtAgent/{task_id}"
+                )
+            )
+            prompt_id = await comfy().queue_prompt(
+                workflow,
                 task_id,
             )
             task = GenerationTask(
@@ -156,6 +227,10 @@ def create_app(
                             image
                             for output in prompt.get("outputs", {}).values()
                             for image in output.get("images", [])
+                        ] + [
+                            image
+                            for output in prompt.get("outputs", {}).values()
+                            for image in output.get("gifs", [])
                         ]
                         if execution_error:
                             item.status = "failed"
@@ -203,6 +278,12 @@ def create_app(
     def get_history() -> list[GenerationTask]:
         return history.list()
 
+    @app.delete("/api/history/{task_id}")
+    def delete_history(task_id: str) -> dict[str, bool]:
+        if not history.remove(task_id):
+            raise HTTPException(status_code=404, detail="任务不存在")
+        return {"ok": True}
+
     @app.get("/api/models/catalog", response_model=ModelCatalogResponse)
     async def get_model_catalog() -> ModelCatalogResponse:
         return await build_model_catalog(store.load(), comfy())
@@ -210,10 +291,10 @@ def create_app(
     @app.post("/api/models/download", response_model=ModelItem)
     async def post_model_download(request: ModelDownloadRequest) -> ModelItem:
         config = store.load()
-        if config.mode != "local":
-            raise HTTPException(status_code=400, detail="请切换到本地模式后下载模型")
         try:
-            return await request_manager_download(request.model_id, config, comfy())
+            return await request_manager_download(
+                request.model_id, config, comfy(), request.destination
+            )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except LookupError as exc:

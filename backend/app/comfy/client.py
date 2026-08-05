@@ -1,6 +1,11 @@
 from typing import Any
+from pathlib import Path
 
 import httpx
+
+
+class ComfyUnavailableError(RuntimeError):
+    """远程 ComfyUI 不可达（例如隧道断开或源站已停止）。"""
 
 
 class ComfyClient:
@@ -14,6 +19,10 @@ class ComfyClient:
         else:
             async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
                 response = await client.request(method, f"{self.base_url}{path}", **kwargs)
+        if response.status_code == 530:
+            raise ComfyUnavailableError(
+                "远程 ComfyUI 暂时不可用：连接隧道已断开，请重新运行 Colab 并更新 API 地址"
+            )
         response.raise_for_status()
         return response
 
@@ -31,12 +40,40 @@ class ComfyClient:
         return response.json()
 
     async def manager_model_list(self) -> Any:
-        response = await self._request("GET", "/manager/model-list")
+        response = await self._request(
+            "GET", "/externalmodel/getlist", params={"mode": "default"}
+        )
         return response.json()
 
     async def manager_install_model(self, model: Any) -> Any:
         response = await self._request("POST", "/manager/queue/install_model", json={"model": model})
         return response.json()
+
+    async def download_model_file(
+        self, url: str, filename: str, destination_dir: Path
+    ) -> Path:
+        """从模型直链 URL 流式下载模型文件到本地目录。"""
+        safe_name = Path(filename).name
+        destination = Path(destination_dir) / safe_name
+        timeout = httpx.Timeout(connect=30, read=600, write=60, pool=10)
+        if self.http:
+            async with self.http.stream(
+                "GET", url, timeout=timeout, follow_redirects=True
+            ) as response:
+                response.raise_for_status()
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with destination.open("wb") as file:
+                    async for chunk in response.aiter_bytes():
+                        file.write(chunk)
+            return destination
+        async with httpx.AsyncClient(timeout=timeout, trust_env=True) as client:
+            async with client.stream("GET", url, follow_redirects=True) as response:
+                response.raise_for_status()
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with destination.open("wb") as file:
+                    async for chunk in response.aiter_bytes():
+                        file.write(chunk)
+            return destination
 
     async def queue_prompt(self, workflow: dict[str, Any], client_id: str) -> str:
         response = await self._request(

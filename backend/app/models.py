@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import quote
 
 from .comfy.client import ComfyClient
@@ -22,6 +22,20 @@ MODEL_NODES: dict[ModelKind, tuple[str, str]] = {
 }
 
 MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
+PREVIEW_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+
+TYPE_TO_KIND: dict[str, ModelKind] = {
+    "checkpoint": "checkpoint",
+    "diffusion_model": "checkpoint",
+    "lora": "lora",
+    "motion lora": "lora",
+    "controlnet": "controlnet",
+    "T2I-Adapter": "controlnet",
+    "IP-Adapter": "controlnet",
+    "instantid": "controlnet",
+    "ipadapter": "controlnet",
+    "VAE": "vae",
+}
 
 
 def model_id(kind: ModelKind, filename: str, source: str) -> str:
@@ -30,6 +44,17 @@ def model_id(kind: ModelKind, filename: str, source: str) -> str:
 
 def model_name(filename: str) -> str:
     return Path(filename).stem
+
+
+def find_preview_image(model_file: Path) -> Path | None:
+    """按 ComfyUI 惯例查找模型同目录的同名预览图（model.safetensors.png 或 model.png）。"""
+    candidates = [Path(f"{model_file}{ext}") for ext in PREVIEW_EXTENSIONS]
+    stem = model_file.with_suffix("")
+    candidates += [Path(f"{stem}{ext}") for ext in PREVIEW_EXTENSIONS]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def scan_local_models(config: AppConfig) -> list[ModelItem]:
@@ -45,6 +70,7 @@ def scan_local_models(config: AppConfig) -> list[ModelItem]:
         for file in sorted(directory.rglob("*")):
             if not file.is_file() or file.suffix.lower() not in MODEL_EXTENSIONS:
                 continue
+            preview = find_preview_image(file)
             items.append(
                 ModelItem(
                     id=model_id(kind, file.name, "local"),
@@ -54,6 +80,7 @@ def scan_local_models(config: AppConfig) -> list[ModelItem]:
                     source="local",
                     installed=True,
                     path=str(file),
+                    preview_url=f"local:{preview}" if preview else None,
                     description="本地 ComfyUI 模型文件",
                 )
             )
@@ -99,6 +126,9 @@ def manager_items_payload(data: Any) -> list[dict[str, Any]]:
 
 
 def infer_kind(item: dict[str, Any]) -> ModelKind:
+    model_type = str(item.get("type") or "").strip()
+    if model_type in TYPE_TO_KIND:
+        return TYPE_TO_KIND[model_type]
     text = " ".join(str(item.get(key, "")) for key in ("type", "category", "save_path", "filename", "name")).lower()
     if "lora" in text:
         return "lora"
@@ -106,7 +136,7 @@ def infer_kind(item: dict[str, Any]) -> ModelKind:
         return "vae"
     if "control" in text:
         return "controlnet"
-    return "checkpoint"
+    return "other"
 
 
 def normalize_manager_model(item: dict[str, Any], installed_files: set[str]) -> ModelItem | None:
@@ -124,6 +154,7 @@ def normalize_manager_model(item: dict[str, Any], installed_files: set[str]) -> 
         description=str(item.get("description") or item.get("title") or "ComfyUI Manager 模型库"),
         preview_url=item.get("image") or item.get("preview") or item.get("cover"),
         size_label=item.get("size") or item.get("size_label"),
+        reference_url=item.get("reference"),
     )
 
 
@@ -142,6 +173,14 @@ async def build_model_catalog(config: AppConfig, client: ComfyClient) -> ModelCa
         message = "ComfyUI 已连接"
         comfy_models = await list_comfy_models(client, local_files)
         if comfy_models:
+            preview_by_filename = {
+                item.filename: item.preview_url
+                for item in local_files
+                if item.preview_url
+            }
+            for item in comfy_models:
+                if item.filename in preview_by_filename and not item.preview_url:
+                    item.preview_url = preview_by_filename[item.filename]
             local_models = comfy_models
     except Exception as exc:
         return ModelCatalogResponse(
@@ -171,17 +210,33 @@ async def build_model_catalog(config: AppConfig, client: ComfyClient) -> ModelCa
     )
 
 
-async def request_manager_download(model_id_value: str, config: AppConfig, client: ComfyClient) -> ModelItem:
+async def request_manager_download(
+    model_id_value: str,
+    config: AppConfig,
+    client: ComfyClient,
+    destination: Literal["remote", "local"] = "local",
+) -> ModelItem:
     if not config.comfyui_path:
-        raise ValueError("请先选择 ComfyUI 安装目录")
+        raise ValueError("请先在连接设置中填写模型下载目录（本地模式为 ComfyUI 安装目录，远程模式为本地下载目录）")
 
     local_files = scan_local_models(config)
     installed_files = {item.filename for item in local_files}
-    manager_data = await client.manager_model_list()
+    try:
+        manager_data = await client.manager_model_list()
+    except Exception as exc:
+        raise LookupError("ComfyUI Manager 不可用或未安装，无法浏览在线模型库") from exc
     for raw in manager_items_payload(manager_data):
         model = normalize_manager_model(raw, installed_files)
         if model and model.id == model_id_value:
-            await client.manager_install_model(raw)
+            if config.mode == "local" or destination == "remote":
+                await client.manager_install_model(raw)
+            else:
+                url = str(raw.get("url") or "").strip()
+                if not url:
+                    raise ValueError("该模型没有直链下载地址，无法下载到本地")
+                folder = str(raw.get("save_path") or MODEL_DIRS[model.kind].name).strip("/")
+                destination_dir = Path(config.comfyui_path) / "models" / folder
+                await client.download_model_file(url, model.filename, destination_dir)
             return model
 
     raise LookupError("模型不存在或 ComfyUI Manager 不可用")

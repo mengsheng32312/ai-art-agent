@@ -4,12 +4,20 @@ import { Button, Layout, message } from "ant-design-vue"
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons-vue"
 import AppSidebar from "./components/AppSidebar.vue"
 import {
+  isDesktop,
+  openInExplorer,
   selectComfyuiDirectory,
   startComfyui,
-  stopComfyui,
   takeDesktopStartupError,
 } from "./lib/desktop"
-import { api, type Config, type GenerationTask, type ModelCatalogResponse, type ModelItem } from "./lib/api"
+import {
+  api,
+  resolveSaveLocation,
+  type Config,
+  type GenerationTask,
+  type ModelCatalogResponse,
+  type ModelItem,
+} from "./lib/api"
 import {
   canSubmitGeneration,
   createDefaultGenerationRequest,
@@ -18,11 +26,10 @@ import {
 } from "./stores/generation"
 import type { Page } from "./types"
 import GenerateView from "./views/GenerateView.vue"
+import VideoView from "./views/VideoView.vue"
 import HistoryView from "./views/HistoryView.vue"
 import ModelsView from "./views/ModelsView.vue"
 import SettingsView from "./views/SettingsView.vue"
-
-type SettingsAction = "test" | "save"
 
 const page = ref<Page>("generate")
 const sidebarCollapsed = ref(false)
@@ -30,6 +37,8 @@ const connected = ref(false)
 const connectionMessage = ref("尚未连接")
 const settingsError = ref("")
 const checkpoints = ref<string[]>([])
+const motionModels = ref<string[]>([])
+const vaeModels = ref<string[]>([])
 const modelCatalog = ref<ModelCatalogResponse>({
   connected: false,
   manager_available: false,
@@ -44,6 +53,8 @@ const testingConnection = ref(false)
 const loadingModels = ref(false)
 const downloadingModelId = ref("")
 const notice = ref("")
+const noticeType = ref<"info" | "success" | "error">("info")
+const submissionAttempted = ref(false)
 const startupError = ref("")
 const localApiUrl = "http://127.0.0.1:8188"
 
@@ -59,22 +70,47 @@ const generationBlockedReason = computed(() =>
   getGenerationBlockedReason(form, connected.value, busy.value, checkpoints.value),
 )
 
+const videoForm = reactive({
+  ...createDefaultGenerationRequest(),
+  media_type: "video" as const,
+  width: 512,
+  height: 512,
+  frames: 16,
+})
+const videoTask = ref<GenerationTask | null>(null)
+const videoBusy = ref(false)
+const videoNotice = ref("")
+const videoNoticeType = ref<"info" | "success" | "error">("info")
+const videoSubmissionAttempted = ref(false)
+const canGenerateVideo = computed(() =>
+  canSubmitGeneration(videoForm, connected.value, videoBusy.value),
+)
+const videoBlockedReason = computed(() =>
+  getGenerationBlockedReason(
+    videoForm,
+    connected.value,
+    videoBusy.value,
+    checkpoints.value,
+  ),
+)
+
 function clearActionState() {
   settingsError.value = ""
   notice.value = ""
+  noticeType.value = "info"
 }
 
-function validateSettings(action: SettingsAction) {
+function validateSettings() {
   settingsError.value = ""
   if (config.mode === "local" && !config.comfyui_path?.trim()) {
-    const actionName = action === "test" ? "测试连接" : "保存设置"
+    const actionName = "测试连接"
     settingsError.value = `${actionName}失败：请选择 ComfyUI 安装目录`
     connected.value = false
     message.warning(settingsError.value)
     return false
   }
   if (config.mode === "remote" && !config.api_url.trim()) {
-    const actionName = action === "test" ? "测试连接" : "保存设置"
+    const actionName = "测试连接"
     settingsError.value = `${actionName}失败：请输入 API 地址`
     connected.value = false
     message.warning(settingsError.value)
@@ -114,6 +150,10 @@ async function waitForCandidateComfyui() {
 }
 
 async function refreshModels() {
+  if (!connected.value) {
+    message.info("尚未连接 ComfyUI，请先在「连接设置」完成连接")
+    return
+  }
   loadingModels.value = true
   try {
     const catalog = await api.models()
@@ -152,16 +192,20 @@ async function ensureLocalComfyuiReady() {
 }
 
 // Download is intentionally allowed only after local ComfyUI path is configured.
-async function downloadModel(id: string) {
-  if (config.mode !== "local" || !config.comfyui_path?.trim()) {
-    message.warning("请先在连接设置选择本地 ComfyUI 目录")
+async function downloadModel(id: string, destination: "remote" | "local" = "local") {
+  if (!config.comfyui_path?.trim()) {
+    message.warning("请先在连接设置填写模型下载目录（本地 ComfyUI 目录）")
     return
   }
 
   downloadingModelId.value = id
   try {
-    const model = await api.downloadModel(id)
-    message.success(`已添加下载任务：${model.name}`)
+    const model = await api.downloadModel(id, destination)
+    message.success(
+      destination === "remote"
+        ? `已在远程设备添加下载任务：${model.name}`
+        : `已添加下载任务：${model.name}`,
+    )
     await refreshModels()
   } catch (error) {
     message.error(error instanceof Error ? error.message : "模型下载失败")
@@ -173,7 +217,8 @@ async function downloadModel(id: string) {
 // User-triggered test: show one toast plus one status area, no duplicate alert.
 async function refreshConnection() {
   notice.value = ""
-  if (!validateSettings("test")) return
+  noticeType.value = "info"
+  if (!validateSettings()) return
 
   testingConnection.value = true
   try {
@@ -182,15 +227,18 @@ async function refreshConnection() {
       notice.value = "正在启动并连接本地 ComfyUI..."
       notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
       if (ready) {
-        message.success("测试连接成功")
+        await api.saveConfig(config)
+        message.success("测试连接成功，设置已保存")
+        void refreshModels()
       }
       return
     }
 
     await checkConnection()
     if (connected.value) {
-      message.success("测试连接成功")
-      await refreshModels()
+      await api.saveConfig(config)
+      message.success("测试连接成功，设置已保存")
+      void refreshModels()
     } else {
       message.error(`测试连接失败：${connectionMessage.value}`)
     }
@@ -199,41 +247,120 @@ async function refreshConnection() {
   }
 }
 
-// Save settings only after validating the active connection mode.
-async function saveSettings() {
-  notice.value = ""
-  if (!validateSettings("save")) return
-
-  busy.value = true
-  try {
-    if (config.mode === "local") {
-      const ready = await ensureLocalComfyuiReady()
-      notice.value = "正在启动并连接本地 ComfyUI..."
-      if (!ready) throw new Error("ComfyUI 启动超时，请确认启动脚本和模型环境正常")
-    } else {
-      await stopComfyui()
-    }
-    await api.saveConfig(config)
-    notice.value = "设置已保存"
-    message.success("设置已保存")
-    await checkConnection()
-    await refreshModels()
-  } catch (error) {
-    notice.value = error instanceof Error ? error.message : "保存失败"
-  } finally {
-    busy.value = false
-  }
-}
-
 async function chooseComfyuiDirectory() {
   try {
-    const selected = await selectComfyuiDirectory()
+    let selected: string | null = null
+    if (isDesktop()) {
+      selected = await selectComfyuiDirectory()
+    } else {
+      selected = await pickDirectoryViaBrowser()
+    }
     if (selected) {
       config.comfyui_path = selected
       clearActionState()
     }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : String(error)
+    noticeType.value = "error"
+  }
+}
+
+async function loadVideoModels() {
+  try {
+    const models = await api.videoModels()
+    motionModels.value = models
+    if (!videoForm.motion_model && models.length) {
+      videoForm.motion_model = models[0]
+    }
+  } catch {
+    motionModels.value = []
+  }
+}
+
+async function loadVaeModels() {
+  try {
+    vaeModels.value = await api.vaeModels()
+  } catch {
+    vaeModels.value = []
+  }
+}
+
+function pickDirectoryViaBrowser(): Promise<string | null> {
+  return new Promise(resolve => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.setAttribute("webkitdirectory", "")
+    input.style.display = "none"
+    document.body.appendChild(input)
+    input.onchange = () => {
+      const file = input.files?.[0]
+      const folder = file?.webkitRelativePath?.split("/")[0] ?? null
+      input.remove()
+      if (folder) {
+        notice.value = "浏览器模式仅能获取目录名称，请在输入框中补充完整路径（如 D:\\ComfyUI）"
+      }
+      resolve(folder)
+    }
+    input.oncancel = () => {
+      input.remove()
+      resolve(null)
+    }
+    input.click()
+  })
+}
+
+function redrawTask(task: GenerationTask) {
+  const target = task.request.media_type === "video" ? videoForm : form
+  Object.assign(target, {
+    prompt: task.request.prompt,
+    negative_prompt: task.request.negative_prompt,
+    checkpoint: task.request.checkpoint,
+    media_type: task.request.media_type,
+    frames: task.request.frames,
+    width: task.request.width,
+    height: task.request.height,
+    steps: task.request.steps,
+    cfg: task.request.cfg,
+    seed: task.request.seed,
+    sampler: task.request.sampler,
+    scheduler: task.request.scheduler,
+    batch_size: task.request.batch_size,
+  })
+  submissionAttempted.value = false
+  videoSubmissionAttempted.value = false
+  page.value = task.request.media_type === "video" ? "video" : "generate"
+}
+
+async function deleteHistoryItem(id: string) {
+  try {
+    await api.deleteHistory(id)
+    history.value = history.value.filter(item => item.id !== id)
+    message.success("已删除")
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "删除失败")
+  }
+}
+
+async function openSaveLocation(task: GenerationTask) {
+  const location = resolveSaveLocation(task, config)
+  if (!location) return
+  if (location.kind === "path" && isDesktop()) {
+    try {
+      await openInExplorer(location.text)
+      return
+    } catch {
+      // 桌面端打开失败时回退到复制路径
+    }
+  }
+  if (location.kind === "url") {
+    window.open(location.text, "_blank", "noopener")
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(location.text)
+    message.success("已复制保存位置")
+  } catch {
+    message.info(location.text)
   }
 }
 
@@ -241,6 +368,8 @@ async function chooseComfyuiDirectory() {
 async function generate() {
   busy.value = true
   notice.value = ""
+  noticeType.value = "info"
+  submissionAttempted.value = true
   try {
     const task = await api.generate(form)
     currentTask.value = task
@@ -254,9 +383,39 @@ async function generate() {
       if (currentTask.value.status === "failed") break
     }
   } catch (error) {
+    noticeType.value = "error"
     notice.value = error instanceof Error ? error.message : "提交失败"
   } finally {
     busy.value = false
+  }
+}
+
+async function generateVideo() {
+  videoBusy.value = true
+  videoNotice.value = ""
+  videoNoticeType.value = "info"
+  videoSubmissionAttempted.value = true
+  try {
+    const task = await api.generate(videoForm)
+    videoTask.value = task
+    history.value = upsertTask(history.value, task)
+    videoNotice.value = `任务已提交：${task.prompt_id}`
+
+    for (
+      let attempt = 0;
+      attempt < 720 && videoTask.value.status !== "completed";
+      attempt++
+    ) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      videoTask.value = await api.generation(task.id)
+      history.value = upsertTask(history.value, videoTask.value)
+      if (videoTask.value.status === "failed") break
+    }
+  } catch (error) {
+    videoNoticeType.value = "error"
+    videoNotice.value = error instanceof Error ? error.message : "提交失败"
+  } finally {
+    videoBusy.value = false
   }
 }
 
@@ -267,13 +426,20 @@ onMounted(async () => {
     if (desktopError) throw new Error(desktopError)
     Object.assign(config, await api.config())
     history.value = await api.history()
-    await refreshModels()
-    if (config.mode === "remote" && config.api_url.trim()) await checkConnection()
+    if (config.mode === "remote" && config.api_url.trim()) {
+      await checkConnection()
+      if (connected.value) {
+        await refreshModels()
+        await loadVideoModels()
+        await loadVaeModels()
+      }
+    }
   } catch (error) {
     connected.value = false
     startupError.value = error instanceof Error ? error.message : String(error)
     connectionMessage.value = startupError.value
     notice.value = `本地 Agent 不可用：${startupError.value}`
+    noticeType.value = "error"
   }
 })
 </script>
@@ -300,17 +466,37 @@ onMounted(async () => {
           v-if="page === 'generate'"
           :form="form"
           :checkpoints="checkpoints"
+          :vae-models="vaeModels"
           :current-task="currentTask"
           :can-generate="canGenerate"
           :blocked-reason="generationBlockedReason"
           :busy="busy"
           :notice="notice"
+          :notice-type="noticeType"
+          :submission-attempted="submissionAttempted"
           @go-models="page = 'models'"
           @generate="generate"
+        />
+        <VideoView
+          v-else-if="page === 'video'"
+          :form="videoForm"
+          :checkpoints="checkpoints"
+          :vae-models="vaeModels"
+          :current-task="videoTask"
+          :can-generate="canGenerateVideo"
+          :blocked-reason="videoBlockedReason"
+          :busy="videoBusy"
+          :notice="videoNotice"
+          :notice-type="videoNoticeType"
+          :submission-attempted="videoSubmissionAttempted"
+          :motion-models="motionModels"
+          @go-models="page = 'models'"
+          @generate="generateVideo"
         />
         <ModelsView
           v-else-if="page === 'models'"
           :config="config"
+          :connected="connected"
           :catalog="modelCatalog"
           :selected-checkpoint="form.checkpoint"
           :loading="loadingModels"
@@ -319,7 +505,14 @@ onMounted(async () => {
           @select="selectModel"
           @download="downloadModel"
         />
-        <HistoryView v-else-if="page === 'history'" :history="history" />
+        <HistoryView
+          v-else-if="page === 'history'"
+          :history="history"
+          :config="config"
+          @redraw="redrawTask"
+          @remove="deleteHistoryItem"
+          @open-location="openSaveLocation"
+        />
         <SettingsView
           v-else
           :config="config"
@@ -328,11 +521,11 @@ onMounted(async () => {
           :busy="busy"
           :testing-connection="testingConnection"
           :notice="notice"
+          :notice-type="noticeType"
           :settings-error="settingsError"
           @clear="clearActionState"
           @choose-directory="chooseComfyuiDirectory"
           @refresh="refreshConnection"
-          @save="saveSettings"
         />
       </Layout.Content>
     </Layout>
