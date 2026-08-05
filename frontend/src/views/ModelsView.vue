@@ -2,7 +2,6 @@
 import { computed, ref, watch } from "vue"
 import { Alert, Button, Card, Col, Empty, Pagination, Row, Segmented, Space, Statistic, Tag, Tooltip } from "ant-design-vue"
 import { CheckOutlined, CloudDownloadOutlined, ReloadOutlined } from "@ant-design/icons-vue"
-import PageHeader from "../components/PageHeader.vue"
 import { proxiedImageUrl, type Config, type ModelCatalogResponse, type ModelItem } from "../lib/api"
 
 const props = defineProps<{
@@ -65,7 +64,7 @@ function kindText(kind: ModelItem["kind"]) {
 </script>
 
 <template>
-  <PageHeader title="模型管理" description="读取 ComfyUI 实际模型，连接后可选择和下载。" />
+  <div class="page-workspace page-scroll">
 
   <Card :bordered="false" class="model-toolbar">
     <Space class="model-toolbar-content">
@@ -115,7 +114,7 @@ function kindText(kind: ModelItem["kind"]) {
           <Card :bordered="false" class="model-card">
             <template #title>
               <Space>
-                <span>{{ item.name }}</span>
+                <span :title="item.name">{{ item.name }}</span>
                 <Tag>{{ kindText(item.kind) }}</Tag>
               </Space>
             </template>
@@ -125,8 +124,8 @@ function kindText(kind: ModelItem["kind"]) {
                 <strong>{{ kindText(item.kind) }}</strong>
                 <span>{{ item.source === "comfyui" ? "ComfyUI 可用" : "本地文件" }}</span>
               </div>
-              <div class="model-file">{{ item.filename }}</div>
-              <div class="model-file">{{ item.path || "未配置本地路径" }}</div>
+              <div class="model-file" :title="item.filename">{{ item.filename }}</div>
+              <div class="model-file" :title="item.path || '未配置本地路径'">{{ item.path || "未配置本地路径" }}</div>
               <Space>
                 <Tag color="success">已存在</Tag>
                 <Button
@@ -181,7 +180,7 @@ function kindText(kind: ModelItem["kind"]) {
           <Card :bordered="false" class="model-card">
             <template #title>
               <Space>
-                <span>{{ item.name }}</span>
+                <span :title="item.name">{{ item.name }}</span>
                 <Tag>{{ kindText(item.kind) }}</Tag>
               </Space>
             </template>
@@ -191,8 +190,8 @@ function kindText(kind: ModelItem["kind"]) {
                 <strong>{{ kindText(item.kind) }}</strong>
                 <span>{{ item.size_label || "Manager 模型库" }}</span>
               </div>
-              <p class="model-desc">{{ item.description }}</p>
-              <div class="model-file">{{ item.filename }}</div>
+              <p class="model-desc" :title="item.description">{{ item.description }}</p>
+              <div class="model-file" :title="item.filename">{{ item.filename }}</div>
               <Space>
                 <Tag :color="item.installed ? 'success' : 'default'">
                   {{ item.installed ? "已存在" : "未下载" }}
@@ -236,4 +235,5 @@ function kindText(kind: ModelItem["kind"]) {
       </template>
     </Card>
   </template>
+  </div>
 </template>

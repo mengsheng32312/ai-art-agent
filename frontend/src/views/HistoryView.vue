@@ -14,7 +14,6 @@ import {
   type Config,
   type GenerationTask,
 } from "../lib/api"
-import PageHeader from "../components/PageHeader.vue"
 
 const props = defineProps<{ history: GenerationTask[]; config: Config }>()
 
@@ -140,7 +139,7 @@ function downloadWorkflow(task: GenerationTask) {
 </script>
 
 <template>
-  <PageHeader title="历史记录" description="查看最近提交的生成任务，可重新绘制、导出节点或删除。" />
+  <div class="page-workspace page-scroll">
 
   <Card v-if="history.length" :bordered="false" class="history-toolbar">
     <Space wrap class="history-toolbar-content">
@@ -169,7 +168,8 @@ function downloadWorkflow(task: GenerationTask) {
               <img
                 v-if="item.outputs[0] && !displayAsVideo(item)"
                 :src="proxiedImageUrl(item.outputs[0])"
-                alt="历史结果"
+                :alt="item.request.prompt || '历史结果'"
+                :title="item.request.prompt || '历史结果'"
               />
               <video
                 v-else-if="item.outputs[0] && displayAsVideo(item)"
@@ -184,7 +184,7 @@ function downloadWorkflow(task: GenerationTask) {
           <Card.Meta :title="item.request.prompt || '未命名任务'">
             <template #description>
               <div class="history-meta">
-                <span>{{ item.request.checkpoint || "未选择模型" }}</span>
+                <span :title="item.request.checkpoint || '未选择模型'">{{ item.request.checkpoint || "未选择模型" }}</span>
                 <span>{{ item.request.width }}x{{ item.request.height }}</span>
                 <Tag :color="statusColor(item.status)">{{ statusLabel(item.status) }}</Tag>
               </div>
@@ -251,4 +251,5 @@ function downloadWorkflow(task: GenerationTask) {
       </Button>
     </template>
   </Modal>
+  </div>
 </template>

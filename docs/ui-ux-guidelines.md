@@ -1,61 +1,87 @@
 # UI/UX Guidelines
 
-## Target Users
+## 设计定位
 
-- Users who want to use ComfyUI without learning node workflows.
-- Users who need a simple local tool for image generation and later asset workflows.
+AI Art Agent 是桌面优先的 ComfyUI 创作工具。Web 版和桌面版共用同一套前端 UI，视觉上借鉴 iOS 的清晰层级、柔和背景、克制圆角和轻量阴影，但不使用过度装饰。
 
-## Core Flow
+## 布局结构
 
-1. Configure connection.
-2. Test connection.
-3. Generate image.
-4. Preview result.
-5. Review history.
+- 左侧导航固定承载主功能：图片生成、视频生成、模型管理、历史记录、连接设置。
+- 顶部栏固定在窗口顶部，承载菜单收起、当前页面、连接状态和少量高频入口。
+- 页面内容不再使用大号页面标题，当前页面信息由顶部栏和局部卡片标题承载。
+- 生成类页面采用左右结构：左侧参数，右侧预览。
+- 模型管理采用：状态统计、筛选操作、模型卡片列表。
+- 设置页突出连接状态和测试连接动作，不增加无关说明。
 
-## Information Architecture
+## 视觉动线
 
-- Left navigation: Image generation, history, connection settings.
-- Top header: global layout controls only.
-- Main area: one primary task per page.
+1. 先看顶部栏确认当前页面和连接状态。
+2. 再看卡片标题和局部状态提示。
+3. 然后完成主要表单操作。
+4. 最后查看预览、历史或结果位置。
 
-## States
+## 主题色
 
-- Normal: editable controls, clear primary action.
-- Loading: every async action must show visible progress on the triggering control and the relevant status area.
-- Empty: use Ant Design Vue `Empty` or clear placeholder text.
-- Error: show field-level validation for form errors and message feedback for user-triggered actions.
-- Success: use message feedback and update the related status area.
+| Token | 色值 | 用途 |
+|---|---:|---|
+| `--accent` | `#007AFF` | 主按钮、选中态、关键交互 |
+| `--accent-hover` | `#0A84FF` | 主按钮 hover |
+| `--accent-soft` | `rgba(0, 122, 255, 0.10)` | 选中背景、弱提示 |
+| `--bg` | `#F5F5F7` | 应用背景 |
+| `--surface` | `#FFFFFF` | 卡片、表单容器 |
+| `--surface-soft` | `#FAFAFC` | 预览区、弱分区 |
+| `--text` | `#1D1D1F` | 主文本 |
+| `--text-secondary` | `#6E6E73` | 描述、辅助信息 |
+| `--border` | `rgba(0, 0, 0, 0.08)` | 分割线、边框 |
 
-## Interaction Rules
+色彩依据：
 
-- Do not show user-triggered validation messages on initial page load.
-- Test/save/generate actions must show immediate feedback.
-- Disabled actions must have an understandable reason nearby.
-- Local ComfyUI mode requires an installation directory before testing or saving.
-- Remote API mode requires an API address before testing or saving.
+- 蓝色代表稳定、可信和系统感，适合工具型桌面软件。
+- 浅灰背景降低视觉负担，适合长时间操作。
+- 白色卡片形成清晰层级，避免复杂节点工具的压迫感。
+- 辅助色只用于状态和提示，不主动制造装饰。
 
-## Visual Rules
+## UI 细节规范
 
-- Use a light, restrained tool UI.
-- Use spacing around 10px for small gaps, 20px for normal gaps, and 30px for large gaps.
-- Avoid decorative gradients, excessive shadows, unnecessary cards, and large rounded corners.
-- Important actions use primary buttons; secondary actions use default buttons.
-- Keep visual hierarchy clear: page title, section title, field label, help text.
+- 页面外边距：`16px` 到 `22px`。
+- 卡片内边距：`16px`。
+- 表单项间距：`10px`。
+- 小元素间距：`8px`。
+- 页面区块间距：`14px` 到 `16px`。
+- 输入框圆角：`10px`。
+- 卡片圆角：`18px`。
+- 标签圆角：`8px`。
+- 阴影只用于卡片和 hover，不使用强投影。
+- 避免大面积渐变；只允许品牌 logo、步骤编号等小面积强调。
+- 提示、说明、空状态、路径和文件名使用 `11px` 到 `12px`，避免喧宾夺主。
+- 下拉项、路径、模型名等长文本默认省略，hover 时必须能看到完整内容。
+- 应用整体尽量不出现浏览器级滚动条；长表单、长列表只允许在内部面板滚动。
 
-## Components
+## Ant Design Vue 使用
 
-- Use Ant Design Vue first: `Layout`, `Menu`, `Form`, `Input`, `InputNumber`, `Select`, `Segmented`, `Button`, `Alert`, `message`, `Spin`, `Progress`, `Card`, `List`, `Empty`, `Tag`.
-- Do not create custom base UI components when Ant Design Vue has an equivalent.
+- 优先使用 Ant Design Vue：`Layout`、`Menu`、`Card`、`Form`、`Input`、`Select`、`Segmented`、`Button`、`Alert`、`List`、`Empty`、`Tag`、`Statistic`。
+- 不自建基础按钮、输入框、选择器。
+- 允许通过全局 CSS 覆盖 Ant Design Vue 的圆角、间距、阴影和颜色 token。
+- 图标只服务于识别，不作为装饰堆叠。
 
-## Accessibility
+## 桌面版与 Web 版
 
-- Keep controls keyboard operable.
-- Use labels for form fields.
-- Icon-only buttons need `aria-label`.
-- Do not rely on color alone for validation or status.
+- 桌面版和 Web 版共用 `frontend/src`。
+- 桌面能力只通过 `frontend/src/lib/desktop.ts` 接入。
+- 不为桌面版单独维护另一套页面。
+- 所有样式变更必须同时适用于 Web 和 Tauri 桌面窗口。
 
-## Responsive Behavior
+## 状态规范
 
-- Desktop: side navigation and two-column generation layout.
-- Mobile: single-column content; side navigation should later become drawer-style.
+- 初始状态不主动弹错误。
+- 用户点击测试、保存、生成、下载后必须有即时反馈。
+- 禁用按钮附近必须能看到原因。
+- 错误信息优先出现在对应字段和当前页面状态区。
+- 成功反馈使用 `message.success` 或页面内状态，不重复展示多处错误。
+
+## 当前不做
+
+- 不做移动端适配。
+- 不做暗色模式。
+- 不做品牌化插画。
+- 不做过度玻璃拟态和强渐变。

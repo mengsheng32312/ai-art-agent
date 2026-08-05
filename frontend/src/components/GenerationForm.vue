@@ -99,7 +99,7 @@ function submit() {
 </script>
 
 <template>
-  <Card title="生成参数" :bordered="false">
+  <Card title="生成参数" :bordered="false" class="generation-form-card">
     <Form layout="vertical">
       <div class="step-title">
         <span class="step-badge">1</span>
@@ -115,18 +115,18 @@ function submit() {
         :help="blockedReason.includes('模型') ? blockedReason : undefined"
       >
         <Select v-model:value="form.checkpoint" placeholder="必填：请选择 checkpoint" :not-found-content="'暂无可用模型'">
-          <Select.Option v-for="item in checkpoints" :key="item" :value="item">{{ item }}</Select.Option>
+          <Select.Option v-for="item in checkpoints" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
         </Select>
       </Form.Item>
       <Space v-if="mode === 'video'" class="form-row" align="start">
         <Form.Item label="运动模型" class="form-main" required>
           <Select v-model:value="form.motion_model" placeholder="必填：选择 AnimateDiff 运动模型">
-            <Select.Option v-for="item in motionModels ?? []" :key="item" :value="item">{{ item }}</Select.Option>
+            <Select.Option v-for="item in motionModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
           </Select>
         </Form.Item>
         <Form.Item label="Beta Schedule">
           <Select v-model:value="form.beta_schedule">
-            <Select.Option v-for="item in betaScheduleOptions" :key="item" :value="item">{{ item }}</Select.Option>
+            <Select.Option v-for="item in betaScheduleOptions" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
           </Select>
         </Form.Item>
       </Space>
@@ -190,12 +190,12 @@ function submit() {
       <Space class="form-row" align="start">
         <Form.Item label="采样器" class="form-main">
           <Select v-model:value="form.sampler">
-            <Select.Option v-for="item in samplerOptions" :key="item" :value="item">{{ item }}</Select.Option>
+            <Select.Option v-for="item in samplerOptions" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
           </Select>
         </Form.Item>
         <Form.Item label="调度器" class="form-main">
           <Select v-model:value="form.scheduler">
-            <Select.Option v-for="item in schedulerOptions" :key="item" :value="item">{{ item }}</Select.Option>
+            <Select.Option v-for="item in schedulerOptions" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
           </Select>
         </Form.Item>
       </Space>
@@ -207,7 +207,7 @@ function submit() {
       </div>
       <Form.Item label="VAE 模型" class="step-field" extra="可选：不选则使用 checkpoint 自带 VAE（VAELoader）">
         <Select v-model:value="form.vae" placeholder="可选：默认使用 checkpoint 自带 VAE" allow-clear :not-found-content="'暂无可用 VAE'">
-          <Select.Option v-for="item in vaeModels ?? []" :key="item" :value="item">{{ item }}</Select.Option>
+          <Select.Option v-for="item in vaeModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
         </Select>
       </Form.Item>
 
@@ -228,9 +228,9 @@ function submit() {
         </Form.Item>
         <Form.Item label="压缩方式">
           <Select v-model:value="form.method">
-            <Select.Option value="default">default</Select.Option>
-            <Select.Option value="fastest">fastest</Select.Option>
-            <Select.Option value="slowest">slowest</Select.Option>
+            <Select.Option value="default" title="default">default</Select.Option>
+            <Select.Option value="fastest" title="fastest">fastest</Select.Option>
+            <Select.Option value="slowest" title="slowest">slowest</Select.Option>
           </Select>
         </Form.Item>
       </Space>

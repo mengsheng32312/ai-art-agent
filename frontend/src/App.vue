@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue"
-import { Button, Layout, message } from "ant-design-vue"
+import { Button, Layout, message, Space, Tag } from "ant-design-vue"
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons-vue"
 import AppSidebar from "./components/AppSidebar.vue"
 import {
@@ -57,6 +57,20 @@ const noticeType = ref<"info" | "success" | "error">("info")
 const submissionAttempted = ref(false)
 const startupError = ref("")
 const localApiUrl = "http://127.0.0.1:8188"
+
+const pageMeta: Record<Page, { label: string; hint: string }> = {
+  generate: { label: "图片生成", hint: "参数与预览" },
+  video: { label: "视频生成", hint: "AnimateDiff" },
+  models: { label: "模型管理", hint: "本地与在线模型" },
+  history: { label: "历史记录", hint: "结果与工作流" },
+  settings: { label: "连接设置", hint: "ComfyUI" },
+}
+
+const quickPages: Array<{ label: string; value: Page }> = [
+  { label: "生成", value: "generate" },
+  { label: "模型", value: "models" },
+  { label: "设置", value: "settings" },
+]
 
 const config = reactive<Config>({
   mode: "remote",
@@ -450,15 +464,34 @@ onMounted(async () => {
 
     <Layout class="app-main-layout">
       <Layout.Header class="app-header">
-        <Button
-          type="text"
-          class="header-trigger"
-          :aria-label="sidebarCollapsed ? '展开菜单' : '收起菜单'"
-          @click="sidebarCollapsed = !sidebarCollapsed"
-        >
-          <MenuUnfoldOutlined v-if="sidebarCollapsed" />
-          <MenuFoldOutlined v-else />
-        </Button>
+        <div class="header-left">
+          <Button
+            type="text"
+            class="header-trigger"
+            :aria-label="sidebarCollapsed ? '展开菜单' : '收起菜单'"
+            @click="sidebarCollapsed = !sidebarCollapsed"
+          >
+            <MenuUnfoldOutlined v-if="sidebarCollapsed" />
+            <MenuFoldOutlined v-else />
+          </Button>
+          <div class="header-page">
+            <strong>{{ pageMeta[page].label }}</strong>
+            <span>{{ pageMeta[page].hint }}</span>
+          </div>
+        </div>
+
+        <Space class="header-actions" :size="8">
+          <Tag :color="connected ? 'success' : 'default'">{{ connected ? "已连接" : "未连接" }}</Tag>
+          <Button
+            v-for="item in quickPages"
+            :key="item.value"
+            size="small"
+            :type="page === item.value ? 'primary' : 'text'"
+            @click="page = item.value"
+          >
+            {{ item.label }}
+          </Button>
+        </Space>
       </Layout.Header>
 
       <Layout.Content class="app-content">

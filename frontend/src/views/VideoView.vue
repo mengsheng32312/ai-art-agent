@@ -3,7 +3,6 @@ import { Col, Row } from "ant-design-vue"
 import type { GenerationRequest, GenerationTask } from "../lib/api"
 import GenerationForm from "../components/GenerationForm.vue"
 import GenerationPreview from "../components/GenerationPreview.vue"
-import PageHeader from "../components/PageHeader.vue"
 
 defineProps<{
   form: GenerationRequest
@@ -23,27 +22,28 @@ const emit = defineEmits<{ generate: []; goModels: [] }>()
 </script>
 
 <template>
-  <PageHeader title="生成视频" description="填写提示词和常用参数，用 AnimateDiff 生成动画视频。" />
-  <Row :gutter="[20, 20]">
-    <Col :xs="24" :xl="11">
-      <GenerationForm
-        :form="form"
-        :checkpoints="checkpoints"
-        :vae-models="vaeModels"
-        :can-generate="canGenerate"
-        :blocked-reason="blockedReason"
-        :submission-attempted="submissionAttempted"
-        :busy="busy"
-        :notice="notice"
-        :notice-type="noticeType"
-        :mode="'video'"
-        :motion-models="motionModels"
-        @go-models="emit('goModels')"
-        @generate="emit('generate')"
-      />
-    </Col>
-    <Col :xs="24" :xl="13">
-      <GenerationPreview :task="currentTask" :blocked-reason="submissionAttempted ? blockedReason : ''" />
-    </Col>
-  </Row>
+  <div class="page-workspace generation-page">
+    <Row :gutter="[16, 16]">
+      <Col :xs="24" :xl="11">
+        <GenerationForm
+          :form="form"
+          :checkpoints="checkpoints"
+          :vae-models="vaeModels"
+          :can-generate="canGenerate"
+          :blocked-reason="blockedReason"
+          :submission-attempted="submissionAttempted"
+          :busy="busy"
+          :notice="notice"
+          :notice-type="noticeType"
+          :mode="'video'"
+          :motion-models="motionModels"
+          @go-models="emit('goModels')"
+          @generate="emit('generate')"
+        />
+      </Col>
+      <Col :xs="24" :xl="13">
+        <GenerationPreview :task="currentTask" :blocked-reason="submissionAttempted ? blockedReason : ''" />
+      </Col>
+    </Row>
+  </div>
 </template>
