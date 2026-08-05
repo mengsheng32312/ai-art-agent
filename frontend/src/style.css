@@ -149,10 +149,10 @@ body {
 
 .app-content {
   width: 100%;
-  max-width: 1560px;
+  max-width: none;
   height: calc(100vh - 52px);
   margin: 0 auto;
-  padding: 16px clamp(14px, 1.6vw, 22px);
+  padding: 12px;
   overflow: hidden;
 }
 
@@ -614,6 +614,30 @@ body {
 
 .history-toolbar {
   margin-bottom: 12px;
+}
+
+.history-empty {
+  display: grid;
+  height: 100%;
+  min-height: 360px;
+  place-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.history-empty .ant-empty {
+  margin: 0;
+}
+
+.history-empty .ant-empty-image {
+  height: 72px;
+}
+
+.history-empty .ant-empty-description {
+  color: var(--text);
+  font-size: 14px;
 }
 
 .history-toolbar-content {

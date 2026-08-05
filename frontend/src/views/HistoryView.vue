@@ -148,16 +148,18 @@ function downloadWorkflow(task: GenerationTask) {
     </Space>
   </Card>
 
-  <Empty
-    v-if="!history.length"
-    :image="Empty.PRESENTED_IMAGE_SIMPLE"
-    description="还没有生成记录，提交生成任务后会显示在这里。"
-  />
-  <Empty
-    v-else-if="!filteredHistory.length"
-    :image="Empty.PRESENTED_IMAGE_SIMPLE"
-    description="当前筛选下没有记录"
-  />
+  <div v-if="!history.length" class="history-empty">
+    <Empty
+      :image="Empty.PRESENTED_IMAGE_SIMPLE"
+      description="还没有生成记录，提交生成任务后会显示在这里。"
+    />
+  </div>
+  <div v-else-if="!filteredHistory.length" class="history-empty">
+    <Empty
+      :image="Empty.PRESENTED_IMAGE_SIMPLE"
+      description="当前筛选下没有记录"
+    />
+  </div>
 
   <List v-else :grid="{ gutter: 16, xs: 1, sm: 2, lg: 3, xl: 4 }" :data-source="filteredHistory">
     <template #renderItem="{ item }">
