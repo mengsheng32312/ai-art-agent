@@ -248,12 +248,23 @@ async function refreshConnection() {
       return
     }
 
-    await checkConnection()
-    if (connected.value) {
-      await api.saveConfig(config)
-      message.success("测试连接成功，设置已保存")
-      void refreshModels()
-    } else {
+    try {
+      const state = await api.checkStatus({ ...config })
+      connected.value = state.connected
+      connectionMessage.value = state.message
+      if (connected.value) {
+        checkpoints.value = await api.checkpoints()
+        if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
+        await api.saveConfig(config)
+        message.success("测试连接成功，设置已保存")
+        void refreshModels()
+      } else {
+        message.error(`测试连接失败：${state.message}`)
+      }
+    } catch (error) {
+      connected.value = false
+      checkpoints.value = []
+      connectionMessage.value = error instanceof Error ? error.message : "连接失败"
       message.error(`测试连接失败：${connectionMessage.value}`)
     }
   } finally {
