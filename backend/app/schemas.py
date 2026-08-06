@@ -65,6 +65,7 @@ class ModelCatalogResponse(BaseModel):
     connected: bool
     manager_available: bool
     message: str
+    remote_models: list[ModelItem] = []
     local_models: list[ModelItem] = []
     online_models: list[ModelItem] = []
 

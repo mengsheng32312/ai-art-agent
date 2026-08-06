@@ -43,6 +43,7 @@ const modelCatalog = ref<ModelCatalogResponse>({
   connected: false,
   manager_available: false,
   message: "请先连接 ComfyUI",
+  remote_models: [],
   local_models: [],
   online_models: [],
 })
@@ -174,7 +175,7 @@ async function refreshModels() {
     modelCatalog.value = catalog
     connected.value = catalog.connected
     connectionMessage.value = catalog.message
-    checkpoints.value = catalog.local_models
+    checkpoints.value = catalog.remote_models
       .filter(item => item.kind === "checkpoint")
       .map(item => item.filename)
     if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
@@ -186,6 +187,10 @@ async function refreshModels() {
 }
 
 function selectModel(model: ModelItem) {
+  if (model.source === "local" && config.mode === "remote") {
+    message.info("本地目录模型不能直接用于远程生成，请先安装到远程 ComfyUI")
+    return
+  }
   if (model.kind !== "checkpoint") {
     message.info("当前只支持选择 checkpoint 用于图片生成")
     return
@@ -207,8 +212,8 @@ async function ensureLocalComfyuiReady() {
 
 // Download is intentionally allowed only after local ComfyUI path is configured.
 async function downloadModel(id: string, destination: "remote" | "local" = "local") {
-  if (!config.comfyui_path?.trim()) {
-    message.warning("请先在连接设置填写模型下载目录（本地 ComfyUI 目录）")
+  if (destination === "local" && !config.comfyui_path?.trim()) {
+    message.warning("请先在连接设置填写本地模型目录")
     return
   }
 
@@ -278,7 +283,9 @@ async function chooseComfyuiDirectory() {
     if (isDesktop()) {
       selected = await selectComfyuiDirectory()
     } else {
-      selected = await pickDirectoryViaBrowser()
+      notice.value = "浏览器模式不能读取完整文件夹路径，请直接在输入框中填写完整目录"
+      noticeType.value = "info"
+      return
     }
     if (selected) {
       config.comfyui_path = selected
@@ -308,30 +315,6 @@ async function loadVaeModels() {
   } catch {
     vaeModels.value = []
   }
-}
-
-function pickDirectoryViaBrowser(): Promise<string | null> {
-  return new Promise(resolve => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.setAttribute("webkitdirectory", "")
-    input.style.display = "none"
-    document.body.appendChild(input)
-    input.onchange = () => {
-      const file = input.files?.[0]
-      const folder = file?.webkitRelativePath?.split("/")[0] ?? null
-      input.remove()
-      if (folder) {
-        notice.value = "浏览器模式仅能获取目录名称，请在输入框中补充完整路径（如 D:\\ComfyUI）"
-      }
-      resolve(folder)
-    }
-    input.oncancel = () => {
-      input.remove()
-      resolve(null)
-    }
-    input.click()
-  })
 }
 
 function redrawTask(task: GenerationTask) {

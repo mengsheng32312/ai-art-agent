@@ -224,7 +224,7 @@ async def build_model_catalog(config: AppConfig, client: ComfyClient) -> ModelCa
     connected = False
     manager_available = False
     message = "请先连接 ComfyUI"
-    local_models = local_files
+    remote_models: list[ModelItem] = []
     online_models: list[ModelItem] = []
 
     try:
@@ -232,21 +232,22 @@ async def build_model_catalog(config: AppConfig, client: ComfyClient) -> ModelCa
         connected = True
         message = "ComfyUI 已连接"
         comfy_models = await list_comfy_models(client, local_files)
-        if comfy_models:
-            preview_by_filename = {
-                item.filename: item.preview_url
-                for item in local_files
-                if item.preview_url
-            }
-            for item in comfy_models:
-                if item.filename in preview_by_filename and not item.preview_url:
-                    item.preview_url = preview_by_filename[item.filename]
-            local_models = comfy_models
+        preview_by_filename = {
+            item.filename: item.preview_url
+            for item in local_files
+            if item.preview_url
+        }
+        for item in comfy_models:
+            if item.filename in preview_by_filename and not item.preview_url:
+                item.preview_url = preview_by_filename[item.filename]
+        remote_models = comfy_models
+        installed_files.update(item.filename for item in remote_models)
     except Exception as exc:
         return ModelCatalogResponse(
             connected=False,
             manager_available=False,
             message=str(exc),
+            remote_models=[],
             local_models=[],
             online_models=[],
         )
@@ -265,7 +266,8 @@ async def build_model_catalog(config: AppConfig, client: ComfyClient) -> ModelCa
         connected=connected,
         manager_available=manager_available,
         message=message,
-        local_models=local_models,
+        remote_models=remote_models,
+        local_models=local_files,
         online_models=online_models,
     )
 
@@ -276,9 +278,6 @@ async def request_manager_download(
     client: ComfyClient,
     destination: Literal["remote", "local"] = "local",
 ) -> ModelItem:
-    if not config.comfyui_path:
-        raise ValueError("请先在连接设置中填写模型下载目录（本地模式为 ComfyUI 安装目录，远程模式为本地下载目录）")
-
     local_files = scan_local_models(config)
     installed_files = {item.filename for item in local_files}
     try:
@@ -291,6 +290,8 @@ async def request_manager_download(
             if config.mode == "local" or destination == "remote":
                 await client.manager_install_model(raw)
             else:
+                if not config.comfyui_path:
+                    raise ValueError("请先在连接设置中填写本地模型目录")
                 url = str(raw.get("url") or "").strip()
                 if not url:
                     raise ValueError("该模型没有直链下载地址，无法下载到本地")

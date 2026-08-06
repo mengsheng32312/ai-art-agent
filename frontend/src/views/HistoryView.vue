@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { h, ref } from "vue"
-import { Button, Empty, List, Modal, Popconfirm, Tag, Tooltip } from "ant-design-vue"
+import { computed, h, ref } from "vue"
+import { Button, Empty, List, Modal, Popconfirm, Select, Tag, Tooltip } from "ant-design-vue"
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -25,6 +25,25 @@ const emit = defineEmits<{
 
 const detailTask = ref<GenerationTask | null>(null)
 const detailVisible = ref(false)
+const typeFilter = ref<"all" | "text-image" | "image-image" | "video">("all")
+
+const typeOptions = [
+  { label: "全部", value: "all" },
+  { label: "文生图", value: "text-image" },
+  { label: "图生图", value: "image-image" },
+  { label: "视频", value: "video" },
+]
+
+function taskType(task: GenerationTask): "text-image" | "image-image" | "video" {
+  if (task.request.media_type === "video") return "video"
+  return task.request.denoise < 1 ? "image-image" : "text-image"
+}
+
+const filteredHistory = computed(() =>
+  typeFilter.value === "all"
+    ? props.history
+    : props.history.filter(item => taskType(item) === typeFilter.value),
+)
 
 function displayAsVideo(task: GenerationTask): boolean {
   const url = task.outputs[0]
@@ -43,6 +62,14 @@ function statusColor(status: GenerationTask["status"]) {
 
 function statusLabel(status: GenerationTask["status"]) {
   return status === "completed" ? "完成" : status === "failed" ? "失败" : status
+}
+
+function typeLabel(task: GenerationTask) {
+  return {
+    "text-image": "文生图",
+    "image-image": "图生图",
+    video: "视频",
+  }[taskType(task)]
 }
 
 function showDetail(task: GenerationTask) {
@@ -106,13 +133,28 @@ function downloadWorkflow(task: GenerationTask) {
 
 <template>
   <div class="page-workspace page-scroll">
+  <div class="history-header">
+    <Select
+      v-model:value="typeFilter"
+      class="history-filter"
+      :options="typeOptions"
+      size="small"
+    />
+  </div>
   <div v-if="!history.length" class="history-empty">
     <Empty
       :image="Empty.PRESENTED_IMAGE_SIMPLE"
       description="还没有生成记录，提交生成任务后会显示在这里。"
     />
   </div>
-  <List v-else class="history-list" :data-source="history">
+  <div v-else-if="!filteredHistory.length" class="history-empty">
+    <Empty
+      :image="Empty.PRESENTED_IMAGE_SIMPLE"
+      description="当前筛选下没有记录"
+    />
+  </div>
+
+  <List v-else class="history-list" :data-source="filteredHistory">
     <template #renderItem="{ item }">
       <List.Item class="history-list-item">
         <div class="history-thumb" @click="showDetail(item)">
@@ -133,10 +175,10 @@ function downloadWorkflow(task: GenerationTask) {
         </div>
 
         <div class="history-info">
-          <div class="history-title">{{ item.request.prompt || '未命名任务' }}</div>
           <div class="history-meta">
-            <span>{{ item.request.checkpoint || "未选择模型" }}</span>
+            <Tag>{{ typeLabel(item) }}</Tag>
             <span>{{ item.request.width }} × {{ item.request.height }}</span>
+            <span>{{ item.request.checkpoint || "未选择模型" }}</span>
             <Tag :color="statusColor(item.status)">{{ statusLabel(item.status) }}</Tag>
           </div>
         </div>
@@ -172,7 +214,7 @@ function downloadWorkflow(task: GenerationTask) {
     v-model:open="detailVisible"
     title="结果详情"
     :footer="null"
-    width="560px"
+    width="min(920px, 92vw)"
     destroy-on-close
   >
     <template v-if="detailTask">
@@ -190,11 +232,16 @@ function downloadWorkflow(task: GenerationTask) {
         />
       </div>
       <div class="history-detail-row">
-        <span class="history-detail-label">{{ resolveSaveLocation(detailTask, config)?.label ?? "位置" }}</span>
+        <span class="history-detail-label">结果信息</span>
+        <div class="history-detail-meta">
+          <Tag>{{ typeLabel(detailTask) }}</Tag>
+          <Tag :color="statusColor(detailTask.status)">{{ statusLabel(detailTask.status) }}</Tag>
+          <span>{{ detailTask.request.width }} × {{ detailTask.request.height }}</span>
+        </div>
         <code class="history-detail-path">{{ resolveSaveLocation(detailTask, config)?.text }}</code>
       </div>
       <Button
-        v-if="detailTask.status === 'completed'"
+        v-if="detailTask.status === 'completed' && resolveSaveLocation(detailTask, config)?.kind === 'path'"
         type="primary"
         block
         @click="emit('openLocation', detailTask)"

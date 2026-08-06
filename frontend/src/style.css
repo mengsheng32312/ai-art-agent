@@ -307,6 +307,8 @@ body {
   border-radius: 12px;
   font-size: 13px;
   font-weight: 500;
+  height: 30px;
+  padding: 3px 10px;
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
@@ -324,6 +326,17 @@ body {
   background: var(--accent-hover) !important;
   border-color: var(--accent-hover) !important;
   transform: translateY(-1px);
+}
+
+.ant-btn-lg {
+  height: 38px;
+  padding: 6px 14px;
+}
+
+.ant-btn-sm {
+  height: 26px;
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 .ant-input,
@@ -675,9 +688,9 @@ body {
 
 .history-thumb {
   display: grid;
-  width: 112px;
-  height: 84px;
-  flex: 0 0 112px;
+  width: 220px;
+  height: 140px;
+  flex: 0 0 220px;
   place-items: center;
   overflow: hidden;
   color: #bfbfbf;
@@ -739,12 +752,18 @@ body {
   font-size: 14px;
 }
 
-.history-toolbar-content {
-  width: 100%;
+.history-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.history-filter {
+  width: 160px;
 }
 
 .history-list {
-  height: 100%;
+  height: calc(100% - 44px);
   overflow-y: auto;
 }
 
@@ -755,8 +774,8 @@ body {
 
 .history-list-item {
   display: flex !important;
-  align-items: center;
-  gap: 14px;
+  align-items: stretch;
+  gap: 16px;
   padding: 12px !important;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -768,6 +787,7 @@ body {
   display: grid;
   flex: 1 1 auto;
   gap: 8px;
+  align-content: center;
   min-width: 0;
 }
 
@@ -784,30 +804,42 @@ body {
   flex: 0 0 auto;
   flex-wrap: wrap;
   gap: 8px;
+  align-content: center;
+  align-items: center;
   justify-content: flex-end;
 }
 
 .history-detail-preview {
   display: grid;
-  max-height: 320px;
+  max-height: 68vh;
   margin-bottom: 16px;
   place-items: center;
   overflow: hidden;
-  background: #fafafa;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
 
 .history-detail-preview img,
 .history-detail-preview video {
   width: 100%;
-  max-height: 320px;
+  max-height: 68vh;
   object-fit: contain;
 }
 
 .history-detail-row {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   margin-bottom: 16px;
+}
+
+.history-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .history-detail-label {
@@ -859,6 +891,15 @@ body {
 
 .model-toolbar .ant-statistic {
   margin-left: 14px;
+}
+
+.model-section-title,
+.model-filter-row {
+  row-gap: 10px !important;
+}
+
+.model-filter-row {
+  margin-bottom: 14px;
 }
 
 .model-preview {

@@ -19,13 +19,15 @@ const emit = defineEmits<{
   download: [id: string, destination: "remote" | "local"]
 }>()
 
-const canDownload = computed(() => Boolean(props.config.comfyui_path))
+const canDownloadLocal = computed(() => Boolean(props.config.comfyui_path))
 const downloadDisabledReason = computed(() => {
-  if (!props.config.comfyui_path) return "请先在连接设置填写模型下载目录（本地 ComfyUI 目录）"
+  if (!props.config.comfyui_path) return "请先在连接设置填写本地模型目录"
   return ""
 })
 
 const kindFilter = ref<"all" | ModelItem["kind"]>("all")
+const remoteKindFilter = ref<"all" | ModelItem["kind"]>("all")
+const localKindFilter = ref<"all" | ModelItem["kind"]>("all")
 const usageFilter = ref<"all" | ModelItem["usage"]>("all")
 const downloadTarget = ref<"remote" | "local">("local")
 const onlinePage = ref(1)
@@ -44,9 +46,18 @@ const usageFilterOptions = [
   { label: "视频模型", value: "video" },
 ]
 const filteredLocalModels = computed(() =>
-  usageFilter.value === "all"
-    ? props.catalog.local_models
-    : props.catalog.local_models.filter(item => item.usage === usageFilter.value),
+  props.catalog.local_models.filter(
+    item =>
+      (localKindFilter.value === "all" || item.kind === localKindFilter.value) &&
+      (usageFilter.value === "all" || item.usage === usageFilter.value),
+  ),
+)
+const filteredRemoteModels = computed(() =>
+  props.catalog.remote_models.filter(
+    item =>
+      (remoteKindFilter.value === "all" || item.kind === remoteKindFilter.value) &&
+      (usageFilter.value === "all" || item.usage === usageFilter.value),
+  ),
 )
 const filteredOnlineModels = computed(() =>
   props.catalog.online_models.filter(
@@ -83,6 +94,10 @@ function usageMeta(usage: ModelItem["usage"]) {
     ? { text: "视频", color: "purple" }
     : { text: "图片", color: "blue" }
 }
+
+function sourceText(source: ModelItem["source"]) {
+  return source === "local" ? "本地文件" : source === "comfyui" ? "远程可用" : "在线模型"
+}
 </script>
 
 <template>
@@ -95,7 +110,8 @@ function usageMeta(usage: ModelItem["usage"]) {
         刷新模型
       </Button>
       <span v-if="connected" class="field-help">{{ catalog.message }}</span>
-      <Statistic title="本地模型" :value="catalog.local_models.length" />
+      <Statistic title="远程可用" :value="catalog.remote_models.length" />
+      <Statistic title="本地目录" :value="catalog.local_models.length" />
       <Statistic title="在线模型" :value="catalog.online_models.length" />
     </Space>
   </Card>
@@ -122,23 +138,24 @@ function usageMeta(usage: ModelItem["usage"]) {
       type="warning"
       show-icon
       message="远程连接说明"
-      description="当前为远程连接模式，仅能读取远程 ComfyUI 的可用模型。如需将模型下载到本地，请在「连接设置」中填写模型下载目录。"
+      description="远程模式下，只有远程 ComfyUI 可用模型能直接用于生成。本地目录模型只是本机文件，不能直接被远程 ComfyUI 调用。"
     />
 
     <Card :bordered="false" class="model-section">
       <template #title>
-        <Space>
-          <span>本地模型</span>
+        <Space class="model-section-title" wrap>
+          <span>远程可用模型</span>
           <Segmented v-model:value="usageFilter" :options="usageFilterOptions" size="small" />
+          <Segmented v-model:value="remoteKindFilter" :options="kindFilterOptions" size="small" />
         </Space>
       </template>
       <Empty
-        v-if="!filteredLocalModels.length"
+        v-if="!filteredRemoteModels.length"
         :image="Empty.PRESENTED_IMAGE_SIMPLE"
-        description="当前筛选没有可用模型，请连接 ComfyUI 后刷新。"
+        description="当前筛选没有远程可用模型。"
       />
       <Row v-else :gutter="[20, 20]">
-        <Col v-for="item in filteredLocalModels" :key="item.id" :xs="24" :md="12" :xl="8">
+        <Col v-for="item in filteredRemoteModels" :key="item.id" :xs="24" :md="12" :xl="8">
           <Card :bordered="false" class="model-card">
             <template #title>
               <Space>
@@ -156,15 +173,63 @@ function usageMeta(usage: ModelItem["usage"]) {
               <div class="model-file" :title="item.filename">{{ item.filename }}</div>
               <div class="model-file" :title="item.path || '未配置本地路径'">{{ item.path || "未配置本地路径" }}</div>
               <Space>
-                <Tag color="success">已存在</Tag>
+                <Tag color="success">可用于生成</Tag>
                 <Button
                   :type="selectedCheckpoint === item.filename ? 'primary' : 'default'"
                   :disabled="item.kind !== 'checkpoint'"
                   @click="emit('select', item)"
                 >
                   <template v-if="selectedCheckpoint === item.filename" #icon><CheckOutlined /></template>
-                  {{ selectedCheckpoint === item.filename ? "当前使用" : "使用" }}
+                  {{ selectedCheckpoint === item.filename ? "已选择" : "使用" }}
                 </Button>
+              </Space>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+    </Card>
+
+    <Card :bordered="false" class="model-section">
+      <template #title>
+        <Space class="model-section-title" wrap>
+          <span>本地目录模型</span>
+          <Segmented v-model:value="localKindFilter" :options="kindFilterOptions" size="small" />
+        </Space>
+      </template>
+      <Empty
+        v-if="!filteredLocalModels.length"
+        :image="Empty.PRESENTED_IMAGE_SIMPLE"
+        description="未发现本地真实模型文件，请在连接设置中填写本地模型目录。"
+      />
+      <Row v-else :gutter="[20, 20]">
+        <Col v-for="item in filteredLocalModels" :key="item.id" :xs="24" :md="12" :xl="8">
+          <Card :bordered="false" class="model-card">
+            <template #title>
+              <Space>
+                <span :title="item.name">{{ item.name }}</span>
+                <Tag :color="usageMeta(item.usage).color">{{ usageMeta(item.usage).text }}</Tag>
+                <Tag>{{ kindText(item.kind) }}</Tag>
+              </Space>
+            </template>
+            <Space direction="vertical" size="middle" class="model-content">
+              <img v-if="item.preview_url" :src="proxiedImageUrl(item.preview_url)" :alt="item.name" class="model-preview-image" />
+              <div v-else class="model-preview">
+                <strong>{{ kindText(item.kind) }}</strong>
+                <span>{{ sourceText(item.source) }}</span>
+              </div>
+              <div class="model-file" :title="item.filename">{{ item.filename }}</div>
+              <div class="model-file" :title="item.path || '未配置本地路径'">{{ item.path || "未配置本地路径" }}</div>
+              <Space>
+                <Tag>本机文件</Tag>
+                <Tooltip :title="config.mode === 'remote' ? '远程 ComfyUI 不能直接使用本机文件' : ''">
+                  <Button
+                    :type="selectedCheckpoint === item.filename ? 'primary' : 'default'"
+                    :disabled="item.kind !== 'checkpoint' || config.mode === 'remote'"
+                    @click="emit('select', item)"
+                  >
+                    {{ selectedCheckpoint === item.filename ? "已选择" : "使用" }}
+                  </Button>
+                </Tooltip>
               </Space>
             </Space>
           </Card>
@@ -178,7 +243,7 @@ function usageMeta(usage: ModelItem["usage"]) {
         type="info"
         show-icon
         message="在线模型库不可用"
-        description="当前 ComfyUI 未安装或未启用 ComfyUI Manager，仅展示本地模型。启用后即可浏览在线模型库。"
+        description="当前 ComfyUI 未安装或未启用 ComfyUI Manager，仅展示远程可用模型和本地目录模型。启用后即可浏览在线模型库。"
       />
       <template v-else>
         <Alert
@@ -188,7 +253,7 @@ function usageMeta(usage: ModelItem["usage"]) {
           message="模型下载说明"
           description="下载到远程设备：模型将安装至远程 ComfyUI，刷新后可在生成页选择使用。下载到本地路径：文件仅保存至本地目录，远程生成不会调用；本地 ComfyUI 模式下下载的模型可直接用于生成。"
         />
-        <Space class="model-toolbar-content">
+        <Space class="model-toolbar-content model-filter-row">
           <Segmented v-model:value="usageFilter" :options="usageFilterOptions" />
           <Segmented v-model:value="kindFilter" :options="kindFilterOptions" />
           <Segmented
@@ -225,7 +290,7 @@ function usageMeta(usage: ModelItem["usage"]) {
               <div class="model-file" :title="item.filename">{{ item.filename }}</div>
               <Space>
                 <Tag :color="item.installed ? 'success' : 'default'">
-                  {{ item.installed ? "已存在" : "未下载" }}
+                  {{ item.installed ? "已在远程可用" : "可安装" }}
                 </Tag>
                 <a v-if="item.reference_url" :href="item.reference_url" target="_blank" rel="noopener">
                   <Button size="small">详情</Button>
@@ -237,12 +302,12 @@ function usageMeta(usage: ModelItem["usage"]) {
                   @click="emit('select', item)"
                 >
                   <template v-if="selectedCheckpoint === item.filename" #icon><CheckOutlined /></template>
-                  {{ selectedCheckpoint === item.filename ? "当前使用" : "使用" }}
+                  {{ selectedCheckpoint === item.filename ? "已选择" : "使用" }}
                 </Button>
-                <Tooltip v-else :title="downloadDisabledReason">
+                <Tooltip v-else :title="downloadTarget === 'local' ? downloadDisabledReason : ''">
                   <Button
                     type="primary"
-                    :disabled="!canDownload"
+                    :disabled="downloadTarget === 'local' && !canDownloadLocal"
                     :loading="downloadingId === item.id"
                     @click="emit('download', item.id, downloadTarget)"
                   >

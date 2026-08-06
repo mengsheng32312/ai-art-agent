@@ -65,19 +65,19 @@ const shouldShowConnectionDetail = computed(() => props.testingConnection || pro
 
         <Form.Item
           v-if="config.mode === 'remote'"
-          label="模型下载目录"
+          label="本地模型目录"
           :validate-status="settingsError ? 'error' : undefined"
           :help="settingsError || undefined"
         >
           <div class="inline-control-row">
             <Input
               :value="config.comfyui_path ?? ''"
-              placeholder="D:\ComfyUI\models 等本地目录"
+              placeholder="D:\ComfyUI"
               @update:value="value => { config.comfyui_path = value; emit('clear') }"
             />
             <Button @click="emit('chooseDirectory')">选择目录</Button>
           </div>
-          <div class="field-help">远程模式下，从在线模型库下载的模型会保存到此目录的 models 子目录中。</div>
+          <div class="field-help">用于扫描本机真实模型文件；远程 ComfyUI 不能直接使用这些本机文件。</div>
         </Form.Item>
 
         <Alert

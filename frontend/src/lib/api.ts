@@ -65,6 +65,7 @@ export type ModelCatalogResponse = {
   connected: boolean
   manager_available: boolean
   message: string
+  remote_models: ModelItem[]
   local_models: ModelItem[]
   online_models: ModelItem[]
 }
