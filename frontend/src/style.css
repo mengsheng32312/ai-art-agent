@@ -688,9 +688,8 @@ body {
 
 .history-thumb {
   display: grid;
-  width: 184px;
-  height: 112px;
-  flex: 0 0 184px;
+  width: 100%;
+  height: 168px;
   place-items: center;
   overflow: hidden;
   color: #bfbfbf;
@@ -777,13 +776,18 @@ body {
 
 .history-list .ant-list-items {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 300px));
+  gap: 12px;
+  align-items: start;
+  justify-content: start;
 }
 
 .history-list-item {
-  display: flex !important;
+  display: grid !important;
+  width: 100%;
+  min-height: 260px;
   align-items: stretch;
-  gap: 12px;
+  gap: 10px;
   padding: 10px !important;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -793,9 +797,8 @@ body {
 
 .history-info {
   display: grid;
-  flex: 1 1 auto;
   gap: 8px;
-  align-content: center;
+  align-content: start;
   min-width: 0;
 }
 
@@ -809,12 +812,12 @@ body {
 
 .history-actions {
   display: flex;
-  flex: 0 0 auto;
   flex-wrap: wrap;
   gap: 6px;
-  align-content: center;
+  padding-top: 2px;
+  align-content: start;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .history-action-btn.ant-btn {
@@ -842,6 +845,28 @@ body {
   width: 100%;
   max-height: 68vh;
   object-fit: contain;
+}
+
+.history-thumb-fallback,
+.history-detail-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  gap: 6px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.history-thumb-fallback .anticon,
+.history-detail-fallback .anticon {
+  color: var(--text-tertiary);
+  font-size: 28px;
+}
+
+.history-detail-fallback {
+  min-height: 360px;
 }
 
 .history-detail-row {
@@ -917,12 +942,33 @@ body {
 }
 
 .model-toolbar-content {
+  display: flex;
   width: 100%;
+  gap: 14px;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.model-toolbar-status {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 520px;
+  gap: 14px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.model-toolbar-stats {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 18px;
+  align-items: center;
 }
 
 .model-toolbar .ant-statistic {
-  margin-left: 14px;
+  min-width: 62px;
+  text-align: right;
 }
 
 .model-section-title,

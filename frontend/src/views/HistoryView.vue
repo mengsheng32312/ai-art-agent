@@ -26,6 +26,7 @@ const emit = defineEmits<{
 const detailTask = ref<GenerationTask | null>(null)
 const detailVisible = ref(false)
 const typeFilter = ref<"all" | "text-image" | "image-image" | "video">("all")
+const brokenImages = ref<Record<string, boolean>>({})
 
 const typeOptions = [
   { label: "全部", value: "all" },
@@ -75,6 +76,14 @@ function typeLabel(task: GenerationTask) {
 function showDetail(task: GenerationTask) {
   detailTask.value = task
   detailVisible.value = true
+}
+
+function markImageBroken(id: string) {
+  brokenImages.value[id] = true
+}
+
+function imageBroken(id: string) {
+  return Boolean(brokenImages.value[id])
 }
 
 function buildWorkflowExport(task: GenerationTask) {
@@ -158,10 +167,10 @@ function downloadWorkflow(task: GenerationTask) {
       <List.Item class="history-list-item">
         <div class="history-thumb" @click="showDetail(item)">
           <img
-            v-if="item.outputs[0] && !displayAsVideo(item)"
+            v-if="item.outputs[0] && !displayAsVideo(item) && !imageBroken(item.id)"
             :src="proxiedImageUrl(item.outputs[0])"
-            :alt="item.request.prompt || '历史结果'"
-            :title="item.request.prompt || '历史结果'"
+            alt="历史结果"
+            @error="markImageBroken(item.id)"
           />
           <video
             v-else-if="item.outputs[0] && displayAsVideo(item)"
@@ -169,7 +178,10 @@ function downloadWorkflow(task: GenerationTask) {
             muted
             class="history-cover-media"
           />
-          <PictureOutlined v-else-if="item.status === 'completed'" />
+          <div v-else-if="item.status === 'completed'" class="history-thumb-fallback">
+            <PictureOutlined />
+            <span>图片不可用</span>
+          </div>
           <span v-else class="history-cover-text">{{ statusLabel(item.status) }}</span>
         </div>
 
@@ -219,9 +231,10 @@ function downloadWorkflow(task: GenerationTask) {
     <template v-if="detailTask">
       <div class="history-detail-preview">
         <img
-          v-if="detailTask.outputs[0] && !displayAsVideo(detailTask)"
+          v-if="detailTask.outputs[0] && !displayAsVideo(detailTask) && !imageBroken(detailTask.id)"
           :src="proxiedImageUrl(detailTask.outputs[0])"
           alt="生成结果"
+          @error="markImageBroken(detailTask.id)"
         />
         <video
           v-else-if="detailTask.outputs[0] && displayAsVideo(detailTask)"
@@ -229,6 +242,10 @@ function downloadWorkflow(task: GenerationTask) {
           controls
           class="history-cover-media"
         />
+        <div v-else class="history-detail-fallback">
+          <PictureOutlined />
+          <span>图片不可用</span>
+        </div>
       </div>
       <div class="history-detail-row">
         <span class="history-detail-label">结果信息</span>

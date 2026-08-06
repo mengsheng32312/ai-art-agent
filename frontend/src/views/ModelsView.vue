@@ -104,16 +104,20 @@ function sourceText(source: ModelItem["source"]) {
   <div class="page-workspace page-scroll">
 
   <Card :bordered="false" class="model-toolbar">
-    <Space class="model-toolbar-content">
+    <div class="model-toolbar-content">
       <Button :loading="loading" @click="emit('refresh')">
         <template #icon><ReloadOutlined /></template>
         刷新模型
       </Button>
-      <span v-if="connected" class="field-help">{{ catalog.message }}</span>
-      <Statistic title="远程可用" :value="catalog.remote_models.length" />
-      <Statistic title="本地目录" :value="catalog.local_models.length" />
-      <Statistic title="在线模型" :value="catalog.online_models.length" />
-    </Space>
+      <div class="model-toolbar-status">
+        <span v-if="connected" class="field-help">{{ catalog.message }}</span>
+        <div class="model-toolbar-stats">
+          <Statistic title="远程可用" :value="catalog.remote_models.length" />
+          <Statistic title="本地目录" :value="catalog.local_models.length" />
+          <Statistic title="在线模型" :value="catalog.online_models.length" />
+        </div>
+      </div>
+    </div>
   </Card>
 
   <Alert
