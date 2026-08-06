@@ -147,7 +147,9 @@ def create_app(
     async def vae_models() -> list[str]:
         try:
             data = await comfy().object_info("VAELoader")
-            return data["VAELoader"]["input"]["required"]["vae_name"][0]
+            names = data["VAELoader"]["input"]["required"]["vae_name"][0]
+            # "pixel_space" 不是真实 VAE，选中会导致输出原始潜变量（像素噪点）
+            return [name for name in names if name != "pixel_space"]
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 

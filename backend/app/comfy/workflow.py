@@ -48,7 +48,7 @@ def build_text_to_image_workflow(
         scheduler=request.scheduler,
     )
     workflow["7"]["inputs"]["filename_prefix"] = request.output_prefix or output_prefix
-    if request.vae:
+    if request.vae and request.vae != "pixel_space":
         workflow["8"] = {
             "class_type": "VAELoader",
             "inputs": {"vae_name": request.vae},
@@ -89,7 +89,7 @@ def build_text_to_video_workflow(
         method=request.method,
         filename_prefix=request.output_prefix or output_prefix,
     )
-    if request.vae:
+    if request.vae and request.vae != "pixel_space":
         workflow["9"] = {
             "class_type": "VAELoader",
             "inputs": {"vae_name": request.vae},
