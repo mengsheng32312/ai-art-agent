@@ -22,10 +22,6 @@
 }
 
 * {
-  border-radius: min(var(--radius), 10px);
-}
-
-* {
   box-sizing: border-box;
 }
 
@@ -98,6 +94,7 @@ body {
   line-height: 52px !important;
   background: rgba(255, 255, 255, 0.82) !important;
   border-bottom: 1px solid var(--border);
+  border-radius: 0 !important;
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
@@ -166,6 +163,7 @@ body {
   flex: 0 0 auto !important;
   background: rgba(255, 255, 255, 0.82) !important;
   border-right: 1px solid var(--border);
+  border-radius: 0 !important;
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
@@ -214,6 +212,7 @@ body {
   padding: 8px 10px;
   background: transparent;
   border: none;
+  border-radius: 0 !important;
 }
 
 .app-sider .ant-menu-item {
@@ -222,7 +221,7 @@ body {
   line-height: 40px;
   color: var(--text);
   font-size: 14px;
-  border-radius: var(--radius-sm);
+  border-radius: 0 !important;
 }
 
 .app-sider .ant-menu-item:hover {
@@ -280,7 +279,8 @@ body {
   letter-spacing: -0.01em;
 }
 
-.ant-card {
+.ant-card,
+.ant-card.ant-card {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -308,7 +308,16 @@ body {
   letter-spacing: -0.01em;
 }
 
-.ant-btn {
+.ant-btn,
+.ant-btn-default,
+.ant-btn-primary,
+.ant-btn-dashed,
+.ant-btn-text,
+.ant-btn-link,
+.ant-btn-sm,
+.ant-btn-lg,
+.ant-btn-icon-only,
+.ant-btn-background-ghost {
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 500;
@@ -317,7 +326,16 @@ body {
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.ant-btn.ant-btn {
+.ant-btn.ant-btn,
+.ant-btn-default.ant-btn,
+.ant-btn-primary.ant-btn,
+.ant-btn-dashed.ant-btn,
+.ant-btn-text.ant-btn,
+.ant-btn-link.ant-btn,
+.ant-btn-sm.ant-btn,
+.ant-btn-lg.ant-btn,
+.ant-btn-icon-only.ant-btn,
+.ant-btn-background-ghost.ant-btn {
   border-radius: var(--radius-sm) !important;
 }
 
@@ -347,8 +365,19 @@ body {
 .ant-input,
 .ant-input-affix-wrapper,
 .ant-input-number,
+.ant-input-number-affix-wrapper,
+.ant-input-number-group-wrapper,
+.ant-input-number-group-wrapper .ant-input-number,
 .ant-select-selector,
-.ant-input-number-group-addon {
+.ant-input-number-group-addon,
+.ant-input-textarea,
+.ant-input-textarea textarea,
+.ant-picker,
+.ant-picker-input,
+.ant-cascader-picker,
+.ant-mentions,
+.ant-radio-button-wrapper,
+.ant-checkbox-inner {
   border-radius: var(--radius-sm) !important;
   font-size: 13px !important;
 }
@@ -366,34 +395,44 @@ body {
   font-weight: 500;
 }
 
-.ant-segmented {
+.ant-segmented,
+.ant-segmented.ant-segmented {
   padding: 3px;
   background: rgba(0, 0, 0, 0.05);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm) !important;
 }
 
-.ant-segmented-item {
-  border-radius: var(--radius-sm);
+.ant-segmented-item,
+.ant-segmented-thumb,
+.ant-segmented-item-label {
+  border-radius: var(--radius-sm) !important;
 }
 
-.ant-tag {
-  border-radius: var(--radius-sm);
+.ant-tag,
+.ant-tag.ant-tag,
+.ant-tag-checkable {
+  border-radius: var(--radius-sm) !important;
 }
 
-.ant-alert {
-  border-radius: var(--radius-md);
+.ant-alert,
+.ant-alert.ant-alert {
+  border-radius: var(--radius-md) !important;
   padding: 10px 12px;
 }
 
 .ant-modal-content,
 .ant-modal-header,
 .ant-modal-footer,
+.ant-card-body,
+.ant-card-head,
 .ant-dropdown,
 .ant-dropdown-menu,
 .ant-dropdown-menu-item,
 .ant-select-dropdown,
 .ant-select-item,
 .ant-select-item-option,
+.ant-select-selection-item,
+.ant-select-selection-overflow-item,
 .ant-picker-dropdown .ant-picker-panel-container,
 .ant-message-notice-content,
 .ant-popover-inner,
@@ -404,12 +443,24 @@ body {
 .ant-pagination-options-quick-jumper input,
 .ant-input-number-handler-wrap,
 .ant-input-number-handler,
+.ant-input-group-addon,
+.ant-input-group-wrapper,
+.ant-input-search .ant-input,
+.ant-input-search .ant-input-group-addon,
+.ant-btn-group,
+.ant-btn-group > .ant-btn,
 .ant-switch,
 .ant-switch-handle,
 .ant-upload,
 .ant-upload-list-item,
 .ant-list,
 .ant-list-item,
+.ant-collapse,
+.ant-collapse-item,
+.ant-collapse-content,
+.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab,
+.ant-drawer-content,
+.ant-drawer-header,
 .ant-card-cover,
 .ant-card-cover img,
 .ant-image,
