@@ -154,8 +154,8 @@ function sourceText(source: ModelItem["source"]) {
         :image="Empty.PRESENTED_IMAGE_SIMPLE"
         description="当前筛选没有远程可用模型。"
       />
-      <Row v-else :gutter="[20, 20]">
-        <Col v-for="item in filteredRemoteModels" :key="item.id" :xs="24" :md="12" :xl="8">
+      <Row v-else :gutter="[12, 12]" class="model-list-row">
+        <Col v-for="item in filteredRemoteModels" :key="item.id" :xs="24">
           <Card :bordered="false" class="model-card">
             <template #title>
               <Space>
@@ -201,8 +201,8 @@ function sourceText(source: ModelItem["source"]) {
         :image="Empty.PRESENTED_IMAGE_SIMPLE"
         description="未发现本地真实模型文件，请在连接设置中填写本地模型目录。"
       />
-      <Row v-else :gutter="[20, 20]">
-        <Col v-for="item in filteredLocalModels" :key="item.id" :xs="24" :md="12" :xl="8">
+      <Row v-else :gutter="[12, 12]" class="model-list-row">
+        <Col v-for="item in filteredLocalModels" :key="item.id" :xs="24">
           <Card :bordered="false" class="model-card">
             <template #title>
               <Space>
@@ -270,8 +270,8 @@ function sourceText(source: ModelItem["source"]) {
           :image="Empty.PRESENTED_IMAGE_SIMPLE"
           description="当前分类没有可下载模型"
         />
-        <Row v-else :gutter="[20, 20]" class="model-section">
-        <Col v-for="item in pagedOnlineModels" :key="item.id" :xs="24" :md="12" :xl="8">
+        <Row v-else :gutter="[12, 12]" class="model-section model-list-row">
+        <Col v-for="item in pagedOnlineModels" :key="item.id" :xs="24">
           <Card :bordered="false" class="model-card">
             <template #title>
               <Space>

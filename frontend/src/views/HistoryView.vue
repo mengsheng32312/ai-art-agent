@@ -138,7 +138,6 @@ function downloadWorkflow(task: GenerationTask) {
       v-model:value="typeFilter"
       class="history-filter"
       :options="typeOptions"
-      size="small"
     />
   </div>
   <div v-if="!history.length" class="history-empty">
@@ -186,17 +185,17 @@ function downloadWorkflow(task: GenerationTask) {
         <div class="history-actions">
           <template v-if="item.status === 'completed'">
             <Tooltip title="查看保存位置">
-              <Button size="small" :icon="h(FolderOpenOutlined)" @click="showDetail(item)" />
+              <Button class="history-action-btn" size="small" :icon="h(FolderOpenOutlined)" @click="showDetail(item)" />
             </Tooltip>
             <Tooltip title="导出节点（工作流 JSON）">
-              <Button size="small" :icon="h(DownloadOutlined)" @click="downloadWorkflow(item)" />
+              <Button class="history-action-btn" size="small" :icon="h(DownloadOutlined)" @click="downloadWorkflow(item)" />
             </Tooltip>
             <Tooltip title="再次绘制">
-              <Button size="small" :icon="h(RedoOutlined)" @click="emit('redraw', item)" />
+              <Button class="history-action-btn" size="small" :icon="h(RedoOutlined)" @click="emit('redraw', item)" />
             </Tooltip>
             <Popconfirm title="确定删除这条记录？" @confirm="emit('remove', item.id)">
               <Tooltip title="删除">
-                <Button size="small" danger :icon="h(DeleteOutlined)" />
+                <Button class="history-action-btn" size="small" danger :icon="h(DeleteOutlined)" />
               </Tooltip>
             </Popconfirm>
           </template>
