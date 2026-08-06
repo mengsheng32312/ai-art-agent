@@ -221,7 +221,7 @@ body {
   line-height: 40px;
   color: var(--text);
   font-size: 14px;
-  border-radius: 0 !important;
+  border-radius: var(--radius-sm) !important;
 }
 
 .app-sider .ant-menu-item:hover {
@@ -423,8 +423,37 @@ body {
 .ant-modal-content,
 .ant-modal-header,
 .ant-modal-footer,
+.ant-card,
 .ant-card-body,
 .ant-card-head,
+.ant-btn,
+.ant-btn-default,
+.ant-btn-primary,
+.ant-btn-dashed,
+.ant-btn-text,
+.ant-btn-link,
+.ant-btn-sm,
+.ant-btn-lg,
+.ant-btn-icon-only,
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-input-number-affix-wrapper,
+.ant-input-number-group-wrapper,
+.ant-select-selector,
+.ant-input-number-group-addon,
+.ant-input-textarea,
+.ant-input-textarea textarea,
+.ant-picker,
+.ant-radio-button-wrapper,
+.ant-checkbox-inner,
+.ant-tag,
+.ant-tag-checkable,
+.ant-alert,
+.ant-segmented,
+.ant-segmented-item,
+.ant-segmented-thumb,
+.ant-segmented-item-label,
 .ant-dropdown,
 .ant-dropdown-menu,
 .ant-dropdown-menu-item,
@@ -468,6 +497,20 @@ body {
 .ant-empty-image svg,
 .ant-progress-inner {
   border-radius: var(--radius-sm) !important;
+  border-start-start-radius: var(--radius-sm) !important;
+  border-start-end-radius: var(--radius-sm) !important;
+  border-end-start-radius: var(--radius-sm) !important;
+  border-end-end-radius: var(--radius-sm) !important;
+}
+
+.app-header.ant-layout-header,
+.app-sider,
+.app-sider .ant-menu {
+  border-radius: 0 !important;
+  border-start-start-radius: 0 !important;
+  border-start-end-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+  border-end-end-radius: 0 !important;
 }
 
 .ant-alert-message {
