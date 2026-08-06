@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from "vue"
 import { Button, ConfigProvider, Layout, message, Space, Tag } from "ant-design-vue"
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons-vue"
 import AppSidebar from "./components/AppSidebar.vue"
+import { antTheme } from "./styles/theme"
 import {
   isDesktop,
   openInExplorer,
@@ -72,24 +73,6 @@ const quickPages: Array<{ label: string; value: Page }> = [
   { label: "模型", value: "models" },
   { label: "设置", value: "settings" },
 ]
-
-// 统一 Ant Design Vue 组件圆角，容器级导航在 CSS 中单独归零。
-const antTheme = {
-  token: {
-    borderRadius: 10,
-    borderRadiusLG: 10,
-    borderRadiusSM: 10,
-    borderRadiusXS: 10,
-  },
-  components: {
-    Button: { borderRadius: 10 },
-    Card: { borderRadiusLG: 10 },
-    Input: { borderRadius: 10 },
-    InputNumber: { borderRadius: 10 },
-    Select: { borderRadius: 10 },
-    Tag: { borderRadiusSM: 10 },
-  },
-}
 
 const config = reactive<Config>({
   mode: "remote",

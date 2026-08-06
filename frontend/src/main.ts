@@ -5,6 +5,7 @@ import "ant-design-vue/dist/reset.css"
 import "./style.css"
 import "./media.css"
 import "./retry.css"
+import "./styles/global.css"
 
 async function bootstrap() {
   await prepareDesktopAgent().catch(recordDesktopStartupError)

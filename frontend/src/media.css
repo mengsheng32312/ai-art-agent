@@ -7,7 +7,7 @@
 
 .result-gallery img {
   max-height: 720px;
-  border-radius: 16px;
+  border-radius: var(--radius);
 }
 
 .thumb {
