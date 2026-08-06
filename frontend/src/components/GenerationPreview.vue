@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue"
-import { Alert, Card, Empty } from "ant-design-vue"
+import { Alert, Button, Card, Empty, Progress } from "ant-design-vue"
 import { proxiedImageUrl, type GenerationTask } from "../lib/api"
 
 const props = defineProps<{ task: GenerationTask | null; blockedReason: string }>()
@@ -54,8 +54,11 @@ function retryImage() {
         @error="imageError = true"
       />
       <div v-if="!imageLoaded && !imageError" class="preview-empty">
-        <div class="preview-loading">
-          <div class="preview-loading-hint">图片加载中…</div>
+        <div class="preview-loading-panel">
+          <div class="preview-skeleton" />
+          <div class="preview-loading-title">正在加载结果</div>
+          <div class="preview-loading-hint">图片或视频文件正在读取，请稍候。</div>
+          <Progress :percent="70" status="active" :show-info="false" />
         </div>
       </div>
       <div v-else-if="imageError" class="preview-empty">
@@ -72,8 +75,13 @@ function retryImage() {
       <Alert type="error" show-icon message="生成失败" :description="task.error || 'ComfyUI 返回失败状态'" />
     </div>
     <div v-else class="preview-empty">
-      <div v-if="task" class="preview-loading">
-        <div class="preview-loading-hint">正在生成，请稍候…</div>
+      <div v-if="task" class="preview-loading-panel">
+        <div class="preview-orbit">
+          <span />
+        </div>
+        <div class="preview-loading-title">正在生成</div>
+        <div class="preview-loading-hint">任务已提交到 ComfyUI，结果完成后会自动显示。</div>
+        <Progress :percent="task.progress" status="active" />
       </div>
       <Empty
         v-else

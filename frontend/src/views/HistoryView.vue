@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, h, ref } from "vue"
-import { Button, Card, Empty, List, Modal, Popconfirm, Segmented, Space, Tag, Tooltip } from "ant-design-vue"
+import { h, ref } from "vue"
+import { Button, Empty, List, Modal, Popconfirm, Tag, Tooltip } from "ant-design-vue"
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -23,34 +23,8 @@ const emit = defineEmits<{
   openLocation: [task: GenerationTask]
 }>()
 
-const statusFilter = ref<"all" | GenerationTask["status"]>("completed")
-const mediaFilter = ref<"all" | "image" | "video">("all")
 const detailTask = ref<GenerationTask | null>(null)
 const detailVisible = ref(false)
-
-const statusOptions = [
-  { label: "全部", value: "all" },
-  { label: "排队", value: "queued" },
-  { label: "运行中", value: "running" },
-  { label: "完成", value: "completed" },
-  { label: "失败", value: "failed" },
-]
-
-const mediaOptions = [
-  { label: "全部", value: "all" },
-  { label: "图片", value: "image" },
-  { label: "视频", value: "video" },
-]
-
-function mediaKind(task: GenerationTask): "image" | "video" | null {
-  const url = task.outputs[0]
-  if (!url) return null
-  const path = url.split("?")[0].toLowerCase()
-  if (/\.(webp)$/.test(path)) return "video"
-  if (/\.(png|jpe?g|bmp|gif)$/.test(path)) return "image"
-  if (/\.(mp4|webm|mov|avi|mkv)$/.test(path)) return "video"
-  return null
-}
 
 function displayAsVideo(task: GenerationTask): boolean {
   const url = task.outputs[0]
@@ -58,14 +32,6 @@ function displayAsVideo(task: GenerationTask): boolean {
   const path = url.split("?")[0].toLowerCase()
   return /\.(mp4|webm|mov|avi|mkv)$/.test(path)
 }
-
-const filteredHistory = computed(() =>
-  props.history.filter(item => {
-    if (statusFilter.value !== "all" && item.status !== statusFilter.value) return false
-    if (mediaFilter.value === "all") return true
-    return mediaKind(item) === mediaFilter.value
-  }),
-)
 
 function statusColor(status: GenerationTask["status"]) {
   return status === "completed"
@@ -140,59 +106,43 @@ function downloadWorkflow(task: GenerationTask) {
 
 <template>
   <div class="page-workspace page-scroll">
-
-  <Card v-if="history.length" :bordered="false" class="history-toolbar">
-    <Space wrap class="history-toolbar-content">
-      <Segmented v-model:value="statusFilter" :options="statusOptions" />
-      <Segmented v-model:value="mediaFilter" :options="mediaOptions" />
-    </Space>
-  </Card>
-
   <div v-if="!history.length" class="history-empty">
     <Empty
       :image="Empty.PRESENTED_IMAGE_SIMPLE"
       description="还没有生成记录，提交生成任务后会显示在这里。"
     />
   </div>
-  <div v-else-if="!filteredHistory.length" class="history-empty">
-    <Empty
-      :image="Empty.PRESENTED_IMAGE_SIMPLE"
-      description="当前筛选下没有记录"
-    />
-  </div>
-
-  <List v-else :grid="{ gutter: 16, xs: 1, sm: 2, lg: 3, xl: 4 }" :data-source="filteredHistory">
+  <List v-else class="history-list" :data-source="history">
     <template #renderItem="{ item }">
-      <List.Item>
-        <Card hoverable class="history-card">
-          <template #cover>
-            <div class="history-cover" @click="showDetail(item)">
-              <img
-                v-if="item.outputs[0] && !displayAsVideo(item)"
-                :src="proxiedImageUrl(item.outputs[0])"
-                :alt="item.request.prompt || '历史结果'"
-                :title="item.request.prompt || '历史结果'"
-              />
-              <video
-                v-else-if="item.outputs[0] && displayAsVideo(item)"
-                :src="proxiedImageUrl(item.outputs[0])"
-                controls
-                class="history-cover-media"
-              />
-              <PictureOutlined v-else-if="item.status === 'completed'" />
-              <span v-else class="history-cover-text">{{ statusLabel(item.status) }}</span>
-            </div>
-          </template>
-          <Card.Meta :title="item.request.prompt || '未命名任务'">
-            <template #description>
-              <div class="history-meta">
-                <span :title="item.request.checkpoint || '未选择模型'">{{ item.request.checkpoint || "未选择模型" }}</span>
-                <span>{{ item.request.width }}x{{ item.request.height }}</span>
-                <Tag :color="statusColor(item.status)">{{ statusLabel(item.status) }}</Tag>
-              </div>
-            </template>
-          </Card.Meta>
-          <div v-if="item.status === 'completed'" class="history-actions">
+      <List.Item class="history-list-item">
+        <div class="history-thumb" @click="showDetail(item)">
+          <img
+            v-if="item.outputs[0] && !displayAsVideo(item)"
+            :src="proxiedImageUrl(item.outputs[0])"
+            :alt="item.request.prompt || '历史结果'"
+            :title="item.request.prompt || '历史结果'"
+          />
+          <video
+            v-else-if="item.outputs[0] && displayAsVideo(item)"
+            :src="proxiedImageUrl(item.outputs[0])"
+            muted
+            class="history-cover-media"
+          />
+          <PictureOutlined v-else-if="item.status === 'completed'" />
+          <span v-else class="history-cover-text">{{ statusLabel(item.status) }}</span>
+        </div>
+
+        <div class="history-info">
+          <div class="history-title">{{ item.request.prompt || '未命名任务' }}</div>
+          <div class="history-meta">
+            <span>{{ item.request.checkpoint || "未选择模型" }}</span>
+            <span>{{ item.request.width }} × {{ item.request.height }}</span>
+            <Tag :color="statusColor(item.status)">{{ statusLabel(item.status) }}</Tag>
+          </div>
+        </div>
+
+        <div class="history-actions">
+          <template v-if="item.status === 'completed'">
             <Tooltip title="查看保存位置">
               <Button size="small" :icon="h(FolderOpenOutlined)" @click="showDetail(item)" />
             </Tooltip>
@@ -207,13 +157,13 @@ function downloadWorkflow(task: GenerationTask) {
                 <Button size="small" danger :icon="h(DeleteOutlined)" />
               </Tooltip>
             </Popconfirm>
-          </div>
-          <div v-else class="history-actions">
+          </template>
+          <template v-else>
             <Popconfirm title="确定删除这条记录？" @confirm="emit('remove', item.id)">
               <Button size="small" danger :icon="h(DeleteOutlined)">删除</Button>
             </Popconfirm>
-          </div>
-        </Card>
+          </template>
+        </div>
       </List.Item>
     </template>
   </List>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { Alert, Button, Card, Form, Input, Segmented, Space } from "ant-design-vue"
+import { Alert, Button, Card, Form, Input, Segmented } from "ant-design-vue"
 import type { Config } from "../lib/api"
 
 const props = defineProps<{
@@ -43,14 +43,14 @@ const shouldShowConnectionDetail = computed(() => props.testingConnection || pro
           :validate-status="settingsError ? 'error' : undefined"
           :help="settingsError || undefined"
         >
-          <Space.Compact block>
+          <div class="inline-control-row">
             <Input
               :value="config.comfyui_path ?? ''"
               placeholder="D:\ComfyUI"
               @update:value="value => { config.comfyui_path = value; emit('clear') }"
             />
             <Button @click="emit('chooseDirectory')">选择目录</Button>
-          </Space.Compact>
+          </div>
           <div class="field-help">请选择包含 main.py 的 ComfyUI 目录，或 Windows Portable 根目录。</div>
         </Form.Item>
 
@@ -69,14 +69,14 @@ const shouldShowConnectionDetail = computed(() => props.testingConnection || pro
           :validate-status="settingsError ? 'error' : undefined"
           :help="settingsError || undefined"
         >
-          <Space.Compact block>
+          <div class="inline-control-row">
             <Input
               :value="config.comfyui_path ?? ''"
               placeholder="D:\ComfyUI\models 等本地目录"
               @update:value="value => { config.comfyui_path = value; emit('clear') }"
             />
             <Button @click="emit('chooseDirectory')">选择目录</Button>
-          </Space.Compact>
+          </div>
           <div class="field-help">远程模式下，从在线模型库下载的模型会保存到此目录的 models 子目录中。</div>
         </Form.Item>
 
