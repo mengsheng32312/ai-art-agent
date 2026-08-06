@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
-import { Alert, Button, Card, Col, Empty, Pagination, Row, Segmented, Space, Statistic, Tag, Tooltip } from "ant-design-vue"
+import { Alert, Button, Card, Col, Empty, Pagination, Row, Segmented, Space, Tag, Tooltip } from "ant-design-vue"
 import { CheckOutlined, CloudDownloadOutlined, ReloadOutlined } from "@ant-design/icons-vue"
 import { proxiedImageUrl, type Config, type ModelCatalogResponse, type ModelItem } from "../lib/api"
 
@@ -112,9 +112,9 @@ function sourceText(source: ModelItem["source"]) {
       <div class="model-toolbar-status">
         <span v-if="connected" class="field-help">{{ catalog.message }}</span>
         <div class="model-toolbar-stats">
-          <Statistic title="远程可用" :value="catalog.remote_models.length" />
-          <Statistic title="本地目录" :value="catalog.local_models.length" />
-          <Statistic title="在线模型" :value="catalog.online_models.length" />
+          <span class="model-stat-item">远程可用：{{ catalog.remote_models.length }}</span>
+          <span class="model-stat-item">本地目录：{{ catalog.local_models.length }}</span>
+          <span class="model-stat-item">在线模型：{{ catalog.online_models.length }}</span>
         </div>
       </div>
     </div>

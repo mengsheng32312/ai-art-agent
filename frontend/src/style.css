@@ -756,7 +756,7 @@ body {
 .history-header {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .history-filter {
@@ -770,7 +770,7 @@ body {
 }
 
 .history-list {
-  height: calc(100% - 42px);
+  height: calc(100% - 38px);
   overflow-y: auto;
 }
 
@@ -826,7 +826,29 @@ body {
   height: 28px;
   padding: 0;
   place-items: center;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  border-color: transparent;
   border-radius: 9px !important;
+  box-shadow: none;
+}
+
+.history-action-btn.ant-btn:hover {
+  color: var(--primary);
+  background: #eef4ff;
+  border-color: #d7e4ff;
+}
+
+.history-action-btn.ant-btn-dangerous {
+  color: #cf5656;
+  background: #fff5f5;
+  border-color: transparent;
+}
+
+.history-action-btn.ant-btn-dangerous:hover {
+  color: #b42318;
+  background: #ffe8e8;
+  border-color: #ffd0d0;
 }
 
 .history-detail-preview {
@@ -942,33 +964,46 @@ body {
 }
 
 .model-toolbar-content {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   width: 100%;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
 }
 
 .model-toolbar-status {
   display: flex;
   min-width: 0;
-  flex: 1 1 520px;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
   justify-content: flex-end;
+}
+
+.model-toolbar-status .field-help {
+  min-width: 0;
+  margin-top: 0;
+  text-align: right;
 }
 
 .model-toolbar-stats {
   display: flex;
   flex: 0 0 auto;
-  gap: 18px;
+  gap: 8px;
   align-items: center;
 }
 
-.model-toolbar .ant-statistic {
-  min-width: 62px;
-  text-align: right;
+.model-stat-item {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
 .model-section-title,
