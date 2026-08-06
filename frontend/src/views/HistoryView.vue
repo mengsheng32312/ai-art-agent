@@ -141,7 +141,7 @@ function downloadWorkflow(task: GenerationTask) {
 </script>
 
 <template>
-  <div class="page-workspace page-scroll">
+  <div class="page-workspace page-scroll history-page">
   <div class="history-header">
     <Select
       v-model:value="typeFilter"

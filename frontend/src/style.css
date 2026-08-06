@@ -759,6 +759,10 @@ body {
   margin-bottom: 6px;
 }
 
+.history-page {
+  padding: 12px;
+}
+
 .history-filter {
   width: 160px;
 }
@@ -829,7 +833,7 @@ body {
   color: var(--text-secondary);
   background: var(--surface-soft);
   border-color: transparent;
-  border-radius: 9px !important;
+  border-radius: 12px !important;
   box-shadow: none;
 }
 
