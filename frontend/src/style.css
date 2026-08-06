@@ -420,6 +420,7 @@ body {
   padding: 10px 12px;
 }
 
+/* 全局圆角规则：业务控件统一 10px，导航容器在下方单独归零。 */
 .ant-modal-content,
 .ant-modal-header,
 .ant-modal-footer,
@@ -503,6 +504,7 @@ body {
   border-end-end-radius: var(--radius-sm) !important;
 }
 
+/* 顶部导航和侧边栏是布局边界，不参与控件圆角。 */
 .app-header.ant-layout-header,
 .app-sider,
 .app-sider .ant-menu {

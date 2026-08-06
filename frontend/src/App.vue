@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue"
-import { Button, Layout, message, Space, Tag } from "ant-design-vue"
+import { Button, ConfigProvider, Layout, message, Space, Tag } from "ant-design-vue"
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons-vue"
 import AppSidebar from "./components/AppSidebar.vue"
 import {
@@ -72,6 +72,24 @@ const quickPages: Array<{ label: string; value: Page }> = [
   { label: "模型", value: "models" },
   { label: "设置", value: "settings" },
 ]
+
+// 统一 Ant Design Vue 组件圆角，容器级导航在 CSS 中单独归零。
+const antTheme = {
+  token: {
+    borderRadius: 10,
+    borderRadiusLG: 10,
+    borderRadiusSM: 10,
+    borderRadiusXS: 10,
+  },
+  components: {
+    Button: { borderRadius: 10 },
+    Card: { borderRadiusLG: 10 },
+    Input: { borderRadius: 10 },
+    InputNumber: { borderRadius: 10 },
+    Select: { borderRadius: 10 },
+    Tag: { borderRadiusSM: 10 },
+  },
+}
 
 const config = reactive<Config>({
   mode: "remote",
@@ -453,108 +471,110 @@ onMounted(async () => {
 </script>
 
 <template>
-  <Layout class="app-layout">
-    <AppSidebar v-model:page="page" :collapsed="sidebarCollapsed" :connected="connected" />
+  <ConfigProvider :theme="antTheme">
+    <Layout class="app-layout">
+      <AppSidebar v-model:page="page" :collapsed="sidebarCollapsed" :connected="connected" />
 
-    <Layout class="app-main-layout">
-      <Layout.Header class="app-header">
-        <div class="header-left">
-          <Button
-            type="text"
-            class="header-trigger"
-            :aria-label="sidebarCollapsed ? '展开菜单' : '收起菜单'"
-            @click="sidebarCollapsed = !sidebarCollapsed"
-          >
-            <MenuUnfoldOutlined v-if="sidebarCollapsed" />
-            <MenuFoldOutlined v-else />
-          </Button>
-          <div class="header-page">
-            <strong>{{ pageMeta[page].label }}</strong>
-            <span>{{ pageMeta[page].hint }}</span>
+      <Layout class="app-main-layout">
+        <Layout.Header class="app-header">
+          <div class="header-left">
+            <Button
+              type="text"
+              class="header-trigger"
+              :aria-label="sidebarCollapsed ? '展开菜单' : '收起菜单'"
+              @click="sidebarCollapsed = !sidebarCollapsed"
+            >
+              <MenuUnfoldOutlined v-if="sidebarCollapsed" />
+              <MenuFoldOutlined v-else />
+            </Button>
+            <div class="header-page">
+              <strong>{{ pageMeta[page].label }}</strong>
+              <span>{{ pageMeta[page].hint }}</span>
+            </div>
           </div>
-        </div>
 
-        <Space class="header-actions" :size="8">
-          <Tag :color="connected ? 'success' : 'default'">{{ connected ? "已连接" : "未连接" }}</Tag>
-          <Button
-            v-for="item in quickPages"
-            :key="item.value"
-            size="small"
-            :type="page === item.value ? 'primary' : 'text'"
-            @click="page = item.value"
-          >
-            {{ item.label }}
-          </Button>
-        </Space>
-      </Layout.Header>
+          <Space class="header-actions" :size="8">
+            <Tag :color="connected ? 'success' : 'default'">{{ connected ? "已连接" : "未连接" }}</Tag>
+            <Button
+              v-for="item in quickPages"
+              :key="item.value"
+              size="small"
+              :type="page === item.value ? 'primary' : 'text'"
+              @click="page = item.value"
+            >
+              {{ item.label }}
+            </Button>
+          </Space>
+        </Layout.Header>
 
-      <Layout.Content class="app-content">
-        <GenerateView
-          v-if="page === 'generate'"
-          :form="form"
-          :checkpoints="checkpoints"
-          :vae-models="vaeModels"
-          :current-task="currentTask"
-          :can-generate="canGenerate"
-          :blocked-reason="generationBlockedReason"
-          :busy="busy"
-          :notice="notice"
-          :notice-type="noticeType"
-          :submission-attempted="submissionAttempted"
-          @go-models="page = 'models'"
-          @generate="generate"
-        />
-        <VideoView
-          v-else-if="page === 'video'"
-          :form="videoForm"
-          :checkpoints="checkpoints"
-          :vae-models="vaeModels"
-          :current-task="videoTask"
-          :can-generate="canGenerateVideo"
-          :blocked-reason="videoBlockedReason"
-          :busy="videoBusy"
-          :notice="videoNotice"
-          :notice-type="videoNoticeType"
-          :submission-attempted="videoSubmissionAttempted"
-          :motion-models="motionModels"
-          @go-models="page = 'models'"
-          @generate="generateVideo"
-        />
-        <ModelsView
-          v-else-if="page === 'models'"
-          :config="config"
-          :connected="connected"
-          :catalog="modelCatalog"
-          :selected-checkpoint="form.checkpoint"
-          :loading="loadingModels"
-          :downloading-id="downloadingModelId"
-          @refresh="refreshModels"
-          @select="selectModel"
-          @download="downloadModel"
-        />
-        <HistoryView
-          v-else-if="page === 'history'"
-          :history="history"
-          :config="config"
-          @redraw="redrawTask"
-          @remove="deleteHistoryItem"
-          @open-location="openSaveLocation"
-        />
-        <SettingsView
-          v-else
-          :config="config"
-          :connected="connected"
-          :connection-message="connectionMessage"
-          :busy="busy"
-          :testing-connection="testingConnection"
-          :notice="notice"
-          :notice-type="noticeType"
-          :settings-error="settingsError"
-          @clear="clearActionState"
-          @choose-directory="chooseComfyuiDirectory"
-          @refresh="refreshConnection"
-        />
-      </Layout.Content>
+        <Layout.Content class="app-content">
+          <GenerateView
+            v-if="page === 'generate'"
+            :form="form"
+            :checkpoints="checkpoints"
+            :vae-models="vaeModels"
+            :current-task="currentTask"
+            :can-generate="canGenerate"
+            :blocked-reason="generationBlockedReason"
+            :busy="busy"
+            :notice="notice"
+            :notice-type="noticeType"
+            :submission-attempted="submissionAttempted"
+            @go-models="page = 'models'"
+            @generate="generate"
+          />
+          <VideoView
+            v-else-if="page === 'video'"
+            :form="videoForm"
+            :checkpoints="checkpoints"
+            :vae-models="vaeModels"
+            :current-task="videoTask"
+            :can-generate="canGenerateVideo"
+            :blocked-reason="videoBlockedReason"
+            :busy="videoBusy"
+            :notice="videoNotice"
+            :notice-type="videoNoticeType"
+            :submission-attempted="videoSubmissionAttempted"
+            :motion-models="motionModels"
+            @go-models="page = 'models'"
+            @generate="generateVideo"
+          />
+          <ModelsView
+            v-else-if="page === 'models'"
+            :config="config"
+            :connected="connected"
+            :catalog="modelCatalog"
+            :selected-checkpoint="form.checkpoint"
+            :loading="loadingModels"
+            :downloading-id="downloadingModelId"
+            @refresh="refreshModels"
+            @select="selectModel"
+            @download="downloadModel"
+          />
+          <HistoryView
+            v-else-if="page === 'history'"
+            :history="history"
+            :config="config"
+            @redraw="redrawTask"
+            @remove="deleteHistoryItem"
+            @open-location="openSaveLocation"
+          />
+          <SettingsView
+            v-else
+            :config="config"
+            :connected="connected"
+            :connection-message="connectionMessage"
+            :busy="busy"
+            :testing-connection="testingConnection"
+            :notice="notice"
+            :notice-type="noticeType"
+            :settings-error="settingsError"
+            @clear="clearActionState"
+            @choose-directory="chooseComfyuiDirectory"
+            @refresh="refreshConnection"
+          />
+        </Layout.Content>
+      </Layout>
     </Layout>
-  </Layout>
+  </ConfigProvider>
 </template>
