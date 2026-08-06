@@ -760,6 +760,7 @@ body {
 
 .model-toolbar-content {
   width: 100%;
+  flex-wrap: wrap;
 }
 
 .model-toolbar .ant-statistic {

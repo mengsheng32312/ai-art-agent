@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote
@@ -24,6 +25,41 @@ MODEL_NODES: dict[ModelKind, tuple[str, str]] = {
 MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
 PREVIEW_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
+VIDEO_KEYWORDS = (
+    "motion",
+    "animatediff",
+    "animate",
+    "mm_sd",
+    "svd",
+    "stable video",
+    "video",
+    "wan",
+    "wan2",
+    "hunyuan",
+    "mochi",
+    "ltx",
+    "ltxv",
+    "cogvideo",
+    "cvg",
+    "t2v",
+    "i2v",
+    "cosmos",
+    "opensora",
+    "tora",
+    "seine",
+    "vdu",
+    "imagetovideo",
+    "image to video",
+    "videogen",
+    "framerf",
+    "vchitect",
+    "sora",
+    "frame",
+    "framepack",
+    "interp",
+    "temporal",
+)
+
 TYPE_TO_KIND: dict[str, ModelKind] = {
     "checkpoint": "checkpoint",
     "diffusion_model": "checkpoint",
@@ -36,6 +72,14 @@ TYPE_TO_KIND: dict[str, ModelKind] = {
     "ipadapter": "controlnet",
     "VAE": "vae",
 }
+
+
+def infer_usage(text: str) -> Literal["image", "video"]:
+    lowered = text.lower()
+    pattern = re.compile(
+        r"(?<![a-z0-9])(" + "|".join(re.escape(k) for k in VIDEO_KEYWORDS) + r")(?![a-z0-9])"
+    )
+    return "video" if pattern.search(lowered) else "image"
 
 
 def model_id(kind: ModelKind, filename: str, source: str) -> str:
@@ -76,6 +120,7 @@ def scan_local_models(config: AppConfig) -> list[ModelItem]:
                     id=model_id(kind, file.name, "local"),
                     name=model_name(file.name),
                     kind=kind,
+                    usage=infer_usage(file.name),
                     filename=file.name,
                     source="local",
                     installed=True,
@@ -104,6 +149,7 @@ async def list_comfy_models(client: ComfyClient, local_models: list[ModelItem]) 
                     id=model_id(kind, filename, "comfyui"),
                     name=model_name(filename),
                     kind=kind,
+                    usage=infer_usage(filename),
                     filename=filename,
                     source="comfyui",
                     installed=True,
@@ -148,6 +194,20 @@ def normalize_manager_model(item: dict[str, Any], installed_files: set[str]) -> 
         id=model_id(kind, filename, "manager"),
         name=str(item.get("name") or model_name(filename)),
         kind=kind,
+        usage=infer_usage(
+            " ".join(
+                str(item.get(key, ""))
+                for key in (
+                    "type",
+                    "category",
+                    "base",
+                    "save_path",
+                    "filename",
+                    "name",
+                    "description",
+                )
+            )
+        ),
         filename=filename,
         source="manager",
         installed=filename in installed_files,

@@ -26,6 +26,7 @@ const downloadDisabledReason = computed(() => {
 })
 
 const kindFilter = ref<"all" | ModelItem["kind"]>("all")
+const usageFilter = ref<"all" | ModelItem["usage"]>("all")
 const downloadTarget = ref<"remote" | "local">("local")
 const onlinePage = ref(1)
 const onlinePageSize = 12
@@ -37,10 +38,22 @@ const kindFilterOptions = [
   { label: "VAE", value: "vae" },
   { label: "其他", value: "other" },
 ]
+const usageFilterOptions = [
+  { label: "全部用途", value: "all" },
+  { label: "图片模型", value: "image" },
+  { label: "视频模型", value: "video" },
+]
+const filteredLocalModels = computed(() =>
+  usageFilter.value === "all"
+    ? props.catalog.local_models
+    : props.catalog.local_models.filter(item => item.usage === usageFilter.value),
+)
 const filteredOnlineModels = computed(() =>
-  kindFilter.value === "all"
-    ? props.catalog.online_models
-    : props.catalog.online_models.filter(item => item.kind === kindFilter.value),
+  props.catalog.online_models.filter(
+    item =>
+      (kindFilter.value === "all" || item.kind === kindFilter.value) &&
+      (usageFilter.value === "all" || item.usage === usageFilter.value),
+  ),
 )
 const pagedOnlineModels = computed(() =>
   filteredOnlineModels.value.slice(
@@ -49,6 +62,9 @@ const pagedOnlineModels = computed(() =>
   ),
 )
 watch(kindFilter, () => {
+  onlinePage.value = 1
+})
+watch(usageFilter, () => {
   onlinePage.value = 1
 })
 
@@ -60,6 +76,12 @@ function kindText(kind: ModelItem["kind"]) {
     vae: "VAE",
     other: "其他",
   }[kind]
+}
+
+function usageMeta(usage: ModelItem["usage"]) {
+  return usage === "video"
+    ? { text: "视频", color: "purple" }
+    : { text: "图片", color: "blue" }
 }
 </script>
 
@@ -103,18 +125,25 @@ function kindText(kind: ModelItem["kind"]) {
       description="当前为远程连接模式，仅能读取远程 ComfyUI 的可用模型。如需将模型下载到本地，请在「连接设置」中填写模型下载目录。"
     />
 
-    <Card title="本地模型" :bordered="false" class="model-section">
+    <Card :bordered="false" class="model-section">
+      <template #title>
+        <Space>
+          <span>本地模型</span>
+          <Segmented v-model:value="usageFilter" :options="usageFilterOptions" size="small" />
+        </Space>
+      </template>
       <Empty
-        v-if="!catalog.local_models.length"
+        v-if="!filteredLocalModels.length"
         :image="Empty.PRESENTED_IMAGE_SIMPLE"
-        description="暂无可用模型，请连接 ComfyUI 后刷新。"
+        description="当前筛选没有可用模型，请连接 ComfyUI 后刷新。"
       />
       <Row v-else :gutter="[20, 20]">
-        <Col v-for="item in catalog.local_models" :key="item.id" :xs="24" :md="12" :xl="8">
+        <Col v-for="item in filteredLocalModels" :key="item.id" :xs="24" :md="12" :xl="8">
           <Card :bordered="false" class="model-card">
             <template #title>
               <Space>
                 <span :title="item.name">{{ item.name }}</span>
+                <Tag :color="usageMeta(item.usage).color">{{ usageMeta(item.usage).text }}</Tag>
                 <Tag>{{ kindText(item.kind) }}</Tag>
               </Space>
             </template>
@@ -160,6 +189,7 @@ function kindText(kind: ModelItem["kind"]) {
           description="下载到远程设备：模型将安装至远程 ComfyUI，刷新后可在生成页选择使用。下载到本地路径：文件仅保存至本地目录，远程生成不会调用；本地 ComfyUI 模式下下载的模型可直接用于生成。"
         />
         <Space class="model-toolbar-content">
+          <Segmented v-model:value="usageFilter" :options="usageFilterOptions" />
           <Segmented v-model:value="kindFilter" :options="kindFilterOptions" />
           <Segmented
             v-if="config.mode === 'remote'"
@@ -181,6 +211,7 @@ function kindText(kind: ModelItem["kind"]) {
             <template #title>
               <Space>
                 <span :title="item.name">{{ item.name }}</span>
+                <Tag :color="usageMeta(item.usage).color">{{ usageMeta(item.usage).text }}</Tag>
                 <Tag>{{ kindText(item.kind) }}</Tag>
               </Space>
             </template>

@@ -50,6 +50,7 @@ export type ModelItem = {
   id: string
   name: string
   kind: "checkpoint" | "lora" | "controlnet" | "vae" | "other"
+  usage: "image" | "video"
   filename: string
   source: "comfyui" | "local" | "manager"
   installed: boolean

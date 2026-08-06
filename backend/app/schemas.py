@@ -50,6 +50,7 @@ class ModelItem(BaseModel):
     id: str
     name: str
     kind: ModelKind
+    usage: Literal["image", "video"] = "image"
     filename: str
     source: Literal["comfyui", "local", "manager"]
     installed: bool
