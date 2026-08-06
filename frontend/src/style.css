@@ -11,6 +11,7 @@
   --radius-lg: 10px;
   --radius-md: 10px;
   --radius-sm: 10px;
+  --radius: 10px;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 8px 18px rgba(0, 0, 0, 0.08), 0 18px 36px rgba(0, 0, 0, 0.08);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
@@ -18,6 +19,10 @@
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
+}
+
+* {
+  border-radius: min(var(--radius), 10px);
 }
 
 * {
@@ -382,14 +387,33 @@ body {
 
 .ant-modal-content,
 .ant-modal-header,
+.ant-modal-footer,
 .ant-dropdown,
 .ant-dropdown-menu,
+.ant-dropdown-menu-item,
 .ant-select-dropdown,
+.ant-select-item,
+.ant-select-item-option,
 .ant-picker-dropdown .ant-picker-panel-container,
 .ant-message-notice-content,
 .ant-popover-inner,
 .ant-tooltip-inner,
 .ant-pagination-item,
+.ant-pagination-prev,
+.ant-pagination-next,
+.ant-pagination-options-quick-jumper input,
+.ant-input-number-handler-wrap,
+.ant-input-number-handler,
+.ant-switch,
+.ant-switch-handle,
+.ant-upload,
+.ant-upload-list-item,
+.ant-list,
+.ant-list-item,
+.ant-card-cover,
+.ant-card-cover img,
+.ant-image,
+.ant-image-img,
 .ant-empty-image svg,
 .ant-progress-inner {
   border-radius: var(--radius-sm) !important;
@@ -1108,12 +1132,20 @@ body {
 }
 
 .generation-page > .ant-row {
+  width: 100%;
   height: 100%;
+  margin: 0 !important;
+  padding: 1px;
 }
 
 .generation-page .ant-col,
 .generation-page .ant-card {
   min-height: 0;
+}
+
+.generation-page .ant-card {
+  overflow: hidden;
+  border-radius: var(--radius-sm) !important;
 }
 
 .generation-form-card {
@@ -1129,7 +1161,7 @@ body {
 .generation-page > .ant-row {
   display: grid !important;
   grid-template-columns: minmax(500px, 0.95fr) minmax(430px, 1fr);
-  gap: 16px !important;
+  gap: 14px !important;
   min-height: 0;
 }
 
