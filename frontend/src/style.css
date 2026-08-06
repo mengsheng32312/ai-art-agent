@@ -8,8 +8,8 @@
   --text: #1d1d1f;
   --text-secondary: #6e6e73;
   --border: rgba(0, 0, 0, 0.08);
-  --radius-lg: 18px;
-  --radius-md: 12px;
+  --radius-lg: 10px;
+  --radius-md: 10px;
   --radius-sm: 10px;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 8px 18px rgba(0, 0, 0, 0.08), 0 18px 36px rgba(0, 0, 0, 0.08);
@@ -52,7 +52,7 @@ body {
   background: rgba(0, 0, 0, 0.14);
   background-clip: content-box;
   border: 3px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -138,7 +138,7 @@ body {
   padding: 0;
   font-size: 18px;
   color: var(--text);
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
 }
 
 .header-trigger:hover {
@@ -186,7 +186,7 @@ body {
   color: #fff;
   font-size: 17px;
   background: var(--accent);
-  border-radius: 11px;
+  border-radius: var(--radius-sm);
   box-shadow: 0 6px 16px rgba(0, 122, 255, 0.22);
 }
 
@@ -217,7 +217,7 @@ body {
   line-height: 40px;
   color: var(--text);
   font-size: 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
 }
 
 .app-sider .ant-menu-item:hover {
@@ -304,7 +304,7 @@ body {
 }
 
 .ant-btn {
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 500;
   height: 30px;
@@ -313,7 +313,7 @@ body {
 }
 
 .ant-btn.ant-btn {
-  border-radius: 12px !important;
+  border-radius: var(--radius-sm) !important;
 }
 
 .ant-btn-primary {
@@ -364,15 +364,15 @@ body {
 .ant-segmented {
   padding: 3px;
   background: rgba(0, 0, 0, 0.05);
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
 }
 
 .ant-segmented-item {
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
 }
 
 .ant-tag {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .ant-alert {
@@ -756,11 +756,14 @@ body {
 .history-header {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 
 .history-page {
-  padding: 12px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 0;
 }
 
 .history-filter {
@@ -774,8 +777,13 @@ body {
 }
 
 .history-list {
-  height: calc(100% - 38px);
+  height: auto;
+  min-height: 0;
+  padding: 12px;
   overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .history-list .ant-list-items {
@@ -833,7 +841,7 @@ body {
   color: var(--text-secondary);
   background: var(--surface-soft);
   border-color: transparent;
-  border-radius: 12px !important;
+  border-radius: var(--radius-sm) !important;
   box-shadow: none;
 }
 
@@ -920,7 +928,7 @@ body {
   overflow-wrap: anywhere;
   font-size: 11px;
   background: var(--bg);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .model-toolbar,
@@ -1007,7 +1015,7 @@ body {
   white-space: nowrap;
   background: var(--surface-soft);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
 }
 
 .model-section-title,
@@ -1072,7 +1080,7 @@ body {
 
 .page-scroll {
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 0;
 }
 
 .settings-page {
