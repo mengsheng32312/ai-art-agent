@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue"
-import { Alert, Card, Empty, Progress, Spin } from "ant-design-vue"
+import { Alert, Card, Empty } from "ant-design-vue"
 import { proxiedImageUrl, type GenerationTask } from "../lib/api"
 
 const props = defineProps<{ task: GenerationTask | null; blockedReason: string }>()
@@ -54,8 +54,9 @@ function retryImage() {
         @error="imageError = true"
       />
       <div v-if="!imageLoaded && !imageError" class="preview-empty">
-        <Spin size="large" />
-        <div class="preview-hint">图片加载中…</div>
+        <div class="preview-loading">
+          <div class="preview-loading-hint">图片加载中…</div>
+        </div>
       </div>
       <div v-else-if="imageError" class="preview-empty">
         <Alert
@@ -69,16 +70,16 @@ function retryImage() {
     </div>
     <div v-else-if="task?.status === 'failed'" class="preview-empty">
       <Alert type="error" show-icon message="生成失败" :description="task.error || 'ComfyUI 返回失败状态'" />
-      <Progress :percent="task.progress" status="exception" />
     </div>
     <div v-else class="preview-empty">
-      <Spin v-if="task" size="large" />
+      <div v-if="task" class="preview-loading">
+        <div class="preview-loading-hint">正在生成，请稍候…</div>
+      </div>
       <Empty
         v-else
         :image="Empty.PRESENTED_IMAGE_SIMPLE"
         :description="blockedReason || '生成结果会显示在这里'"
       />
-      <Progress v-if="task" :percent="task.progress" active />
     </div>
   </Card>
 </template>

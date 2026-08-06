@@ -419,6 +419,40 @@ body {
   justify-self: center;
 }
 
+.preview-loading {
+  position: relative;
+  width: min(420px, 100%);
+  aspect-ratio: 1 / 1;
+  max-height: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: linear-gradient(
+    100deg,
+    var(--surface-soft) 40%,
+    rgba(0, 0, 0, 0.06) 50%,
+    var(--surface-soft) 60%
+  );
+  background-size: 200% 100%;
+  animation: preview-loading-shimmer 1.5s ease-in-out infinite;
+}
+
+.preview-loading-hint {
+  position: absolute;
+  inset: auto 0 16px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@keyframes preview-loading-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 .preview-empty {
   display: grid;
   width: min(420px, 100%);
