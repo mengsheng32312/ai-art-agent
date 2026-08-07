@@ -161,6 +161,8 @@ def test_fallback_getaddrinfo_after_system_dns_failure(monkeypatch) -> None:
 def test_fallback_getaddrinfo_reports_clear_error_when_all_fail(
     monkeypatch,
 ) -> None:
+    resolver.clear_cache()
+
     def boom(host, port, *args, **kwargs):
         raise socket.gaierror(11001, "getaddrinfo failed")
 
@@ -170,10 +172,11 @@ def test_fallback_getaddrinfo_reports_clear_error_when_all_fail(
     resolver.install_fallback_resolver()
     try:
         with pytest.raises(socket.gaierror) as excinfo:
-            socket.getaddrinfo("x.trycloudflare.com", 443)
+            socket.getaddrinfo("never-resolved.example", 443)
         assert "系统 DNS 解析失败" in str(excinfo.value)
     finally:
         socket.getaddrinfo = original
+        resolver.clear_cache()
 
 
 def test_fallback_getaddrinfo_passes_through_when_dns_works(monkeypatch) -> None:
@@ -190,3 +193,51 @@ def test_fallback_getaddrinfo_passes_through_when_dns_works(monkeypatch) -> None
         assert socket.getaddrinfo("example.com", 443) == [("fake-result",)]
     finally:
         socket.getaddrinfo = original
+
+
+def test_successful_resolution_is_cached(monkeypatch) -> None:
+    resolver.clear_cache()
+    calls = {"count": 0}
+
+    def real(host, port, *args, **kwargs):
+        calls["count"] += 1
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("104.16.1.1", port))]
+
+    def boom(host, port, *args, **kwargs):
+        raise socket.gaierror(11001, "getaddrinfo failed")
+
+    monkeypatch.setattr(resolver, "_original_getaddrinfo", real)
+    original = socket.getaddrinfo
+    resolver.install_fallback_resolver()
+    try:
+        assert socket.getaddrinfo("x.trycloudflare.com", 443)[0][4][0] == "104.16.1.1"
+        monkeypatch.setattr(resolver, "_original_getaddrinfo", boom)
+        assert socket.getaddrinfo("x.trycloudflare.com", 443)[0][4][0] == "104.16.1.1"
+        assert calls["count"] == 1
+    finally:
+        socket.getaddrinfo = original
+        resolver.clear_cache()
+
+
+def test_cache_skips_public_dns_after_successful_fallback(monkeypatch) -> None:
+    resolver.clear_cache()
+    original = socket.getaddrinfo
+    resolver.install_fallback_resolver()
+    queries = {"count": 0}
+
+    def boom(host, port, *args, **kwargs):
+        raise socket.gaierror(11001, "getaddrinfo failed")
+
+    def fake_query(host: str) -> list[str]:
+        queries["count"] += 1
+        return ["104.16.2.2"]
+
+    monkeypatch.setattr(resolver, "_original_getaddrinfo", boom)
+    monkeypatch.setattr(resolver, "query_a", fake_query)
+    try:
+        assert socket.getaddrinfo("x.trycloudflare.com", 443)[0][4][0] == "104.16.2.2"
+        assert socket.getaddrinfo("x.trycloudflare.com", 443)[0][4][0] == "104.16.2.2"
+        assert queries["count"] == 1
+    finally:
+        socket.getaddrinfo = original
+        resolver.clear_cache()

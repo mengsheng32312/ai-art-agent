@@ -2,6 +2,8 @@
 
 import socket
 import struct
+import threading
+import time
 import urllib.parse
 
 import httpx
@@ -14,6 +16,34 @@ PUBLIC_DNS_SERVERS: tuple[str, ...] = (
 )
 
 _original_getaddrinfo = socket.getaddrinfo
+
+CACHE_TTL_SECONDS = 300.0
+
+_cache_lock = threading.Lock()
+_cache: dict[tuple[str, int], tuple[float, list]] = {}
+
+
+def _cache_lookup(host: str, port: int) -> list | None:
+    now = time.monotonic()
+    with _cache_lock:
+        entry = _cache.get((host.lower(), port))
+        if entry is None:
+            return None
+        timestamp, results = entry
+        if now - timestamp >= CACHE_TTL_SECONDS:
+            del _cache[(host.lower(), port)]
+            return None
+        return results
+
+
+def _cache_store(host: str, port: int, results: list) -> None:
+    with _cache_lock:
+        _cache[(host.lower(), port)] = (time.monotonic(), results)
+
+
+def clear_cache() -> None:
+    with _cache_lock:
+        _cache.clear()
 
 
 def _encode_qname(host: str) -> bytes:
@@ -137,8 +167,15 @@ def _fallback_getaddrinfo(
     proto: int = 0,
     flags: int = 0,
 ):
+    if isinstance(host, str) and host and family in (0, socket.AF_INET):
+        cached = _cache_lookup(host, int(port))
+        if cached is not None:
+            return cached
     try:
-        return _original_getaddrinfo(host, port, family, type, proto, flags)
+        results = _original_getaddrinfo(host, port, family, type, proto, flags)
+        if isinstance(host, str) and host and family in (0, socket.AF_INET):
+            _cache_store(host, int(port), results)
+        return results
     except socket.gaierror:
         if not isinstance(host, str) or not host or family not in (0, socket.AF_INET):
             raise
@@ -149,10 +186,11 @@ def _fallback_getaddrinfo(
                 "系统 DNS 解析失败，公共 DNS 兜底也未成功："
                 "请检查网络连接、代理或防火墙设置后重试",
             ) from None
-        return [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, int(port)))
-            for ip in ips
+        results = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, int(port))) for ip in ips
         ]
+        _cache_store(host, int(port), results)
+        return results
 
 
 def install_fallback_resolver() -> None:
