@@ -6,6 +6,9 @@ from app.main import create_app
 
 
 class FakeModelComfyClient:
+    def __init__(self) -> None:
+        self.install_calls: list[dict] = []
+
     async def check_status(self) -> bool:
         return True
 
@@ -31,8 +34,14 @@ class FakeModelComfyClient:
                 "name": "Downloadable",
                 "filename": "downloadable.safetensors",
                 "type": "checkpoint",
+                "base": "SD1.5",
+                "save_path": "checkpoints",
+                "url": "https://example.com/downloadable.safetensors",
             },
         ]
+
+    async def manager_install_model(self, model: dict) -> None:
+        self.install_calls.append(model)
 
 
 def test_model_catalog_separates_remote_and_local_models(tmp_path: Path) -> None:
@@ -64,3 +73,43 @@ def test_model_catalog_separates_remote_and_local_models(tmp_path: Path) -> None
     online = {item["filename"]: item for item in catalog["online_models"]}
     assert online["remote.safetensors"]["installed"] is True
     assert online["downloadable.safetensors"]["installed"] is False
+
+
+def test_download_to_remote_passes_model_metadata_directly(tmp_path: Path) -> None:
+    fake = FakeModelComfyClient()
+    client = TestClient(
+        create_app(
+            data_dir=tmp_path / "data", comfy_factory=lambda _: fake
+        )
+    )
+    client.put(
+        "/api/config",
+        json={
+            "mode": "remote",
+            "api_url": "http://comfy",
+        },
+    )
+
+    catalog = client.get("/api/models/catalog").json()
+    downloadable = next(
+        item
+        for item in catalog["online_models"]
+        if item["filename"] == "downloadable.safetensors"
+    )
+    response = client.post(
+        "/api/models/download",
+        json={"model_id": downloadable["id"], "destination": "remote"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "downloadable.safetensors"
+    assert fake.install_calls == [
+        {
+            "name": "Downloadable",
+            "filename": "downloadable.safetensors",
+            "type": "checkpoint",
+            "base": "SD1.5",
+            "save_path": "checkpoints",
+            "url": "https://example.com/downloadable.safetensors",
+        }
+    ]
