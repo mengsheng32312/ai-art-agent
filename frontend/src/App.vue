@@ -192,6 +192,16 @@ function selectModel(model: ModelItem) {
     message.success(`已选择视频模型：${model.name}`)
     return
   }
+  if (model.kind === "vae") {
+    form.vae = model.filename
+    videoForm.vae = model.filename
+    if (!vaeModels.value.includes(model.filename)) {
+      vaeModels.value.push(model.filename)
+    }
+    page.value = "generate"
+    message.success(`已选择 VAE 模型：${model.name}`)
+    return
+  }
   if (model.kind !== "checkpoint") {
     message.info("当前只支持选择 checkpoint 用于图片生成")
     return

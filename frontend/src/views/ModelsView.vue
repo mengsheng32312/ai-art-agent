@@ -200,7 +200,7 @@ function sourceText(source: ModelItem["source"]) {
               <div class="model-file" :title="item.path || '未配置本地路径'">{{ item.path || "未配置本地路径" }}</div>
               <Space>
                 <Button
-                  :disabled="item.kind !== 'checkpoint' && item.usage !== 'video'"
+                  :disabled="item.kind !== 'checkpoint' && item.usage !== 'video' && item.kind !== 'vae'"
                   @click="emit('select', item)"
                 >
                   使用
@@ -254,7 +254,7 @@ function sourceText(source: ModelItem["source"]) {
                 <Tag>本机文件</Tag>
                 <Tooltip :title="config.mode === 'remote' ? '远程模式不能使用本地模型，请切换到本地模式后使用' : ''">
                   <Button
-                    :disabled="(item.kind !== 'checkpoint' && item.usage !== 'video') || config.mode === 'remote'"
+                    :disabled="(item.kind !== 'checkpoint' && item.usage !== 'video' && item.kind !== 'vae') || config.mode === 'remote'"
                     @click="emit('select', item)"
                   >
                     使用
@@ -325,7 +325,7 @@ function sourceText(source: ModelItem["source"]) {
                 </Button>
                 <Button
                   v-if="item.installed"
-                  :disabled="item.kind !== 'checkpoint' && item.usage !== 'video'"
+                  :disabled="item.kind !== 'checkpoint' && item.usage !== 'video' && item.kind !== 'vae'"
                   @click="emit('select', item)"
                 >
                   使用
