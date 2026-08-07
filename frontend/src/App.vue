@@ -183,12 +183,22 @@ function selectModel(model: ModelItem) {
     message.info("本地目录模型不能直接用于远程生成，请先安装到远程 ComfyUI")
     return
   }
+  if (model.usage === "video") {
+    videoForm.motion_model = model.filename
+    if (!motionModels.value.includes(model.filename)) {
+      motionModels.value.push(model.filename)
+    }
+    page.value = "video"
+    message.success(`已选择视频模型：${model.name}`)
+    return
+  }
   if (model.kind !== "checkpoint") {
     message.info("当前只支持选择 checkpoint 用于图片生成")
     return
   }
   form.checkpoint = model.filename
-  message.success(`已选择模型：${model.filename}`)
+  page.value = "generate"
+  message.success(`已选择模型：${model.name}`)
 }
 
 async function ensureLocalComfyuiReady() {
@@ -213,7 +223,7 @@ async function downloadModel(id: string, destination: "remote" | "local" = "loca
   try {
     const model = await api.downloadModel(id, destination)
     if (destination === "remote") {
-      message.success(`已在远程设备添加下载任务：${model.name}`)
+      message.success(`已添加到下载队列：${model.name}`)
       if (!remoteDownloadingModels.value.some(item => item.id === model.id)) {
         remoteDownloadingModels.value.push(model)
       }
@@ -222,7 +232,7 @@ async function downloadModel(id: string, destination: "remote" | "local" = "loca
         item => item.id !== model.id,
       )
     } else {
-      message.success(`已添加下载任务：${model.name}`)
+      message.success(`已添加到下载队列：${model.name}`)
       await refreshModels()
     }
   } catch (error) {
