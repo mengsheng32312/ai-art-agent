@@ -192,7 +192,7 @@ function downloadWorkflow(task: GenerationTask) {
             <Tag>{{ typeLabel(item) }}</Tag>
             <span>{{ item.request.width }} × {{ item.request.height }}</span>
             <span>{{ item.request.checkpoint || "未选择模型" }}</span>
-            <Tag :color="statusColor(item.status)">{{ statusLabel(item.status) }}</Tag>
+            <Tag v-if="item.status !== 'completed'" :color="statusColor(item.status)">{{ statusLabel(item.status) }}</Tag>
           </div>
         </div>
 
