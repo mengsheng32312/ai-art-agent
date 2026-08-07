@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, ref } from "vue"
-import { Button, Empty, List, Modal, Popconfirm, Select, Tag, Tooltip } from "ant-design-vue"
+import { Button, Card, Empty, List, Modal, Popconfirm, Select, Tag, Tooltip } from "ant-design-vue"
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -142,13 +142,15 @@ function downloadWorkflow(task: GenerationTask) {
 
 <template>
   <div class="page-workspace page-scroll history-page">
-  <div class="history-header">
-    <Select
-      v-model:value="typeFilter"
-      class="history-filter"
-      :options="typeOptions"
-    />
-  </div>
+  <Card :bordered="false" class="history-toolbar">
+    <div class="history-toolbar-content">
+      <Select
+        v-model:value="typeFilter"
+        class="history-filter"
+        :options="typeOptions"
+      />
+    </div>
+  </Card>
   <div v-if="!history.length" class="history-empty">
     <Empty
       :image="Empty.PRESENTED_IMAGE_SIMPLE"

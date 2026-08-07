@@ -789,21 +789,17 @@ body {
   font-size: 14px;
 }
 
-.history-header {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 2;
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0;
+.history-page {
+  padding: 0;
 }
 
-.history-page {
-  position: relative;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  padding: 0;
+.history-toolbar {
+  margin-bottom: 14px;
+}
+
+.history-toolbar-content {
+  display: flex;
+  align-items: center;
 }
 
 .history-filter {
@@ -817,10 +813,7 @@ body {
 }
 
 .history-list {
-  height: auto;
-  min-height: 0;
   padding: 12px;
-  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
