@@ -200,6 +200,14 @@ function sourceText(source: ModelItem["source"]) {
           <Segmented v-model:value="localKindFilter" :options="kindFilterOptions" size="small" />
         </Space>
       </template>
+      <Alert
+        v-if="config.mode === 'remote'"
+        class="model-section"
+        type="warning"
+        show-icon
+        message="远程模式不能使用本地模型"
+        description="本地模型只是本机文件，远程 ComfyUI 无法加载。如需使用本地模型绘制，请到连接设置切换到本地 ComfyUI 模式，再用「测试连接」连接。"
+      />
       <Empty
         v-if="!filteredLocalModels.length"
         :image="Empty.PRESENTED_IMAGE_SIMPLE"
@@ -225,7 +233,7 @@ function sourceText(source: ModelItem["source"]) {
               <div class="model-file" :title="item.path || '未配置本地路径'">{{ item.path || "未配置本地路径" }}</div>
               <Space>
                 <Tag>本机文件</Tag>
-                <Tooltip :title="config.mode === 'remote' ? '远程 ComfyUI 不能直接使用本机文件' : ''">
+                <Tooltip :title="config.mode === 'remote' ? '远程模式不能使用本地模型，请切换到本地模式后使用' : ''">
                   <Button
                     :type="selectedCheckpoint === item.filename ? 'primary' : 'default'"
                     :disabled="item.kind !== 'checkpoint' || config.mode === 'remote'"
