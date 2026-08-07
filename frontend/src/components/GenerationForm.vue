@@ -1,6 +1,21 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { Alert, Button, Card, Checkbox, Form, Input, InputNumber, message, Segmented, Select, Space, Tooltip, Upload } from "ant-design-vue"
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Segmented,
+  Select,
+  Space,
+  Tooltip,
+  Upload,
+  type UploadFile,
+} from "ant-design-vue"
 import { PlusOutlined, ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
 import { api, type GenerationRequest } from "../lib/api"
 import { parseWorkflowFile } from "../lib/workflow"
@@ -26,9 +41,9 @@ const emit = defineEmits<{ generate: []; goModels: [] }>()
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 const pendingFiles = ref<Record<string, File>>({})
-const referenceImagePreview = ref("")
-const controlnetPreview = ref("")
-const referenceVideoName = ref("")
+const referenceImageFiles = ref<UploadFile[]>([])
+const controlnetFiles = ref<UploadFile[]>([])
+const referenceVideoFiles = ref<UploadFile[]>([])
 
 const samplerOptions = [
   "euler",
@@ -169,14 +184,21 @@ async function onImportFile(event: Event) {
 function selectReferenceImage(file: File) {
   pendingFiles.value["reference_image"] = file
   props.form.reference_image = file.name
-  referenceImagePreview.value = URL.createObjectURL(file)
+  referenceImageFiles.value = [
+    {
+      uid: "reference_image",
+      name: file.name,
+      status: "done",
+      url: URL.createObjectURL(file),
+    },
+  ]
   return false
 }
 
 function clearReferenceImage() {
   delete pendingFiles.value["reference_image"]
   props.form.reference_image = ""
-  referenceImagePreview.value = ""
+  referenceImageFiles.value = []
 }
 
 function addLora() {
@@ -211,14 +233,21 @@ function selectControlnetImage(file: File) {
     props.form.controlnet.image = file.name
   }
   pendingFiles.value["controlnet"] = file
-  controlnetPreview.value = URL.createObjectURL(file)
+  controlnetFiles.value = [
+    {
+      uid: "controlnet",
+      name: file.name,
+      status: "done",
+      url: URL.createObjectURL(file),
+    },
+  ]
   return false
 }
 
 function clearControlnet() {
   delete pendingFiles.value["controlnet"]
   props.form.controlnet = null
-  controlnetPreview.value = ""
+  controlnetFiles.value = []
 }
 
 function toggleHires(enabled: boolean) {
@@ -236,14 +265,20 @@ const videoModeOptions = [
 function selectReferenceVideo(file: File) {
   pendingFiles.value["reference_video"] = file
   props.form.reference_video = file.name
-  referenceVideoName.value = file.name
+  referenceVideoFiles.value = [
+    {
+      uid: "reference_video",
+      name: file.name,
+      status: "done",
+    },
+  ]
   return false
 }
 
 function clearReferenceVideo() {
   delete pendingFiles.value["reference_video"]
   props.form.reference_video = ""
-  referenceVideoName.value = ""
+  referenceVideoFiles.value = []
 }
 </script>
 
@@ -328,30 +363,19 @@ function clearReferenceVideo() {
               : '上传一张图作为视频首帧，模型将推断后续运动（Wan I2V）。'"
           />
         </template>
-        <Space wrap>
-          <Upload
-            :show-upload-list="false"
-            accept="image/*"
-            :before-upload="selectReferenceImage"
-          >
-            <Button>
-              <template #icon><UploadOutlined /></template>
-              上传参考图
-            </Button>
-          </Upload>
-          <img
-            v-if="referenceImagePreview"
-            :src="referenceImagePreview"
-            class="reference-image-preview"
-            alt="参考图"
-          />
-          <span v-if="pendingFiles.reference_image || form.reference_image" class="field-help">
-            {{ pendingFiles.reference_image?.name || form.reference_image }}
-          </span>
-          <Button v-if="pendingFiles.reference_image || form.reference_image" size="small" @click="clearReferenceImage">
-            移除
+        <Upload
+          list-type="picture"
+          accept="image/*"
+          :max-count="1"
+          :file-list="referenceImageFiles"
+          :before-upload="selectReferenceImage"
+          @remove="clearReferenceImage"
+        >
+          <Button>
+            <template #icon><UploadOutlined /></template>
+            选择参考图
           </Button>
-        </Space>
+        </Upload>
       </Form.Item>
 
       <div v-if="mode === 'video' && form.video_mode === 'v2v'" class="step-title">
@@ -366,24 +390,18 @@ function clearReferenceVideo() {
             help="上传参考视频，取其首尾帧约束输出视频的运动；建议帧数不少于生成帧数（Wan V2V）。"
           />
         </template>
-        <Space wrap>
-          <Upload
-            :show-upload-list="false"
-            accept="video/*"
-            :before-upload="selectReferenceVideo"
-          >
-            <Button>
-              <template #icon><UploadOutlined /></template>
-              上传参考视频
-            </Button>
-          </Upload>
-          <span v-if="pendingFiles.reference_video || form.reference_video" class="field-help">
-            {{ pendingFiles.reference_video?.name || form.reference_video }}
-          </span>
-          <Button v-if="pendingFiles.reference_video || form.reference_video" size="small" @click="clearReferenceVideo">
-            移除
+        <Upload
+          accept="video/*"
+          :max-count="1"
+          :file-list="referenceVideoFiles"
+          :before-upload="selectReferenceVideo"
+          @remove="clearReferenceVideo"
+        >
+          <Button>
+            <template #icon><UploadOutlined /></template>
+            选择参考视频
           </Button>
-        </Space>
+        </Upload>
       </Form.Item>
 
       <div class="step-title">
@@ -454,6 +472,7 @@ function clearReferenceVideo() {
         </template>
         <Space direction="vertical" size="small" style="width: 100%">
           <div v-for="(lora, index) in form.loras ?? []" :key="index" class="lora-row">
+            <span class="lora-label">{{ index + 1 }}# LoRA</span>
             <Select
               v-model:value="lora.name"
               placeholder="选择 LoRA"
@@ -462,12 +481,10 @@ function clearReferenceVideo() {
             >
               <Select.Option v-for="item in loraModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
             </Select>
-            <Tooltip title="model 强度">
-              <InputNumber v-model:value="lora.model_strength" :min="0" :max="4" :step="0.05" />
-            </Tooltip>
-            <Tooltip title="clip 强度">
-              <InputNumber v-model:value="lora.clip_strength" :min="0" :max="4" :step="0.05" />
-            </Tooltip>
+            <span class="lora-label">Model</span>
+            <InputNumber v-model:value="lora.model_strength" :min="0" :max="4" :step="0.05" />
+            <span class="lora-label">Clip</span>
+            <InputNumber v-model:value="lora.clip_strength" :min="0" :max="4" :step="0.05" />
             <Button size="small" @click="removeLora(index)">移除</Button>
           </div>
           <Button v-if="(form.loras ?? []).length < 3" size="small" @click="addLora">
@@ -489,39 +506,32 @@ function clearReferenceVideo() {
             help="上传条件图并选择控制模型：Canny 线稿约束构图、深度图约束空间关系、姿态约束人物动作。strength 越高约束越强，start/end 控制生效的采样区间。"
           />
         </template>
-        <Space v-if="!form.controlnet" direction="vertical" size="small">
+        <Space direction="vertical" size="small" style="width: 100%">
           <Upload
-            :show-upload-list="false"
+            list-type="picture"
             accept="image/*"
+            :max-count="1"
+            :file-list="controlnetFiles"
             :before-upload="selectControlnetImage"
+            @remove="clearControlnet"
           >
             <Button>
               <template #icon><UploadOutlined /></template>
-              上传条件图
+              选择条件图
             </Button>
           </Upload>
-        </Space>
-        <Space v-else-if="pendingFiles.controlnet || form.controlnet" wrap>
-          <img
-            v-if="controlnetPreview"
-            :src="controlnetPreview"
-            class="reference-image-preview"
-            alt="条件图"
-          />
-          <Select v-model:value="form.controlnet.model" placeholder="选择 ControlNet 模型" style="min-width: 200px">
-            <Select.Option v-for="item in controlnetModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
-          </Select>
-          <Select v-model:value="form.controlnet.preprocessor" :options="preprocessorOptions" style="min-width: 130px" />
-          <Tooltip title="约束强度">
+          <Space v-if="form.controlnet" wrap>
+            <Select v-model:value="form.controlnet.model" placeholder="选择 ControlNet 模型" style="min-width: 200px">
+              <Select.Option v-for="item in controlnetModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
+            </Select>
+            <Select v-model:value="form.controlnet.preprocessor" :options="preprocessorOptions" style="min-width: 130px" />
+            <span class="lora-label">强度</span>
             <InputNumber v-model:value="form.controlnet.strength" :min="0" :max="4" :step="0.05" />
-          </Tooltip>
-          <Tooltip title="开始区间">
+            <span class="lora-label">开始</span>
             <InputNumber v-model:value="form.controlnet.start_percent" :min="0" :max="1" :step="0.05" />
-          </Tooltip>
-          <Tooltip title="结束区间">
+            <span class="lora-label">结束</span>
             <InputNumber v-model:value="form.controlnet.end_percent" :min="0" :max="1" :step="0.05" />
-          </Tooltip>
-          <Button size="small" @click="clearControlnet">移除</Button>
+          </Space>
         </Space>
       </Form.Item>
 

@@ -1141,21 +1141,18 @@ body {
   border-radius: var(--radius-md);
 }
 
-.reference-image-preview {
-  width: 96px;
-  height: 96px;
-  object-fit: contain;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
 .lora-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   width: 100%;
+}
+
+.lora-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .ant-form-item {
