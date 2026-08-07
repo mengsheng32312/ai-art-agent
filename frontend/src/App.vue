@@ -7,6 +7,8 @@ import { antTheme } from "./styles/theme"
 import {
   isDesktop,
   openInExplorer,
+  prepareDesktopAgent,
+  recordDesktopStartupError,
   selectComfyuiDirectory,
   startComfyui,
   takeDesktopStartupError,
@@ -530,6 +532,7 @@ async function generateVideo() {
 onMounted(async () => {
   startupError.value = ""
   try {
+    await prepareDesktopAgent().catch(recordDesktopStartupError)
     const desktopError = takeDesktopStartupError()
     if (desktopError) throw new Error(desktopError)
     Object.assign(config, await api.config())
