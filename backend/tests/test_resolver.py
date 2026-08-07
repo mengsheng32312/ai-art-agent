@@ -1,6 +1,9 @@
 import socket
 import struct
 
+import httpx
+import pytest
+
 from app.comfy import resolver
 
 
@@ -99,6 +102,47 @@ def test_query_a_uses_tcp_after_udp_failure(monkeypatch) -> None:
     assert ips == ["1.2.3.4"]
 
 
+def test_query_a_uses_doh_after_udp_and_tcp_failure(monkeypatch) -> None:
+    payload = {"Answer": [{"name": "example.com", "type": 1, "data": "9.9.9.9"}]}
+
+    class _FakeDohClient:
+        def __init__(self, **kwargs) -> None:
+            pass
+
+        def __enter__(self) -> "_FakeDohClient":
+            return self
+
+        def __exit__(self, *args) -> None:
+            pass
+
+        def get(self, url: str, headers: dict) -> "_FakeResponse":
+            return _FakeResponse(payload)
+
+    class _FakeResponse:
+        def __init__(self, payload: dict) -> None:
+            self.payload = payload
+
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict:
+            return self.payload
+
+    monkeypatch.setattr(
+        socket, "socket", lambda family, type_: _FakeSocket(b"\x00" * 12)
+    )
+
+    def dead_connection(*args, **kwargs):
+        raise OSError("tcp blocked")
+
+    monkeypatch.setattr(socket, "create_connection", dead_connection)
+    monkeypatch.setattr(httpx, "Client", _FakeDohClient)
+
+    ips = resolver.query_a("example.com", servers=("223.5.5.5",))
+
+    assert ips == ["9.9.9.9"]
+
+
 def test_fallback_getaddrinfo_after_system_dns_failure(monkeypatch) -> None:
     def boom(host, port, *args, **kwargs):
         raise socket.gaierror(11001, "getaddrinfo failed")
@@ -110,6 +154,24 @@ def test_fallback_getaddrinfo_after_system_dns_failure(monkeypatch) -> None:
     try:
         results = socket.getaddrinfo("x.trycloudflare.com", 443)
         assert ("104.16.230.132", 443) in {item[4] for item in results}
+    finally:
+        socket.getaddrinfo = original
+
+
+def test_fallback_getaddrinfo_reports_clear_error_when_all_fail(
+    monkeypatch,
+) -> None:
+    def boom(host, port, *args, **kwargs):
+        raise socket.gaierror(11001, "getaddrinfo failed")
+
+    monkeypatch.setattr(resolver, "_original_getaddrinfo", boom)
+    monkeypatch.setattr(resolver, "query_a", lambda host: [])
+    original = socket.getaddrinfo
+    resolver.install_fallback_resolver()
+    try:
+        with pytest.raises(socket.gaierror) as excinfo:
+            socket.getaddrinfo("x.trycloudflare.com", 443)
+        assert "系统 DNS 解析失败" in str(excinfo.value)
     finally:
         socket.getaddrinfo = original
 

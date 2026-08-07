@@ -2,6 +2,9 @@
 
 import socket
 import struct
+import urllib.parse
+
+import httpx
 
 PUBLIC_DNS_SERVERS: tuple[str, ...] = (
     "223.5.5.5",
@@ -74,6 +77,10 @@ def query_a(
             ips = _query_tcp(server, query, timeout)
         if ips:
             return ips
+    for endpoint in ("https://8.8.8.8/resolve", "https://1.1.1.1/dns-query"):
+        ips = _query_doh(endpoint, host, timeout)
+        if ips:
+            return ips
     return []
 
 
@@ -105,6 +112,23 @@ def _query_tcp(server: str, query: bytes, timeout: float) -> list[str]:
         return []
 
 
+def _query_doh(endpoint: str, host: str, timeout: float) -> list[str]:
+    url = f"{endpoint}?name={urllib.parse.quote(host)}&type=A"
+    headers = {"Accept": "application/dns-json"}
+    try:
+        with httpx.Client(trust_env=False, timeout=timeout) as client:
+            response = client.get(url, headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+        return [
+            str(answer["data"])
+            for answer in payload.get("Answer", [])
+            if int(answer.get("type", -1)) == 1
+        ]
+    except (httpx.HTTPError, KeyError, TypeError, ValueError):
+        return []
+
+
 def _fallback_getaddrinfo(
     host: str | None,
     port: int | str,
@@ -120,7 +144,11 @@ def _fallback_getaddrinfo(
             raise
         ips = query_a(host)
         if not ips:
-            raise
+            raise socket.gaierror(
+                11001,
+                "系统 DNS 解析失败，公共 DNS 兜底也未成功："
+                "请检查网络连接、代理或防火墙设置后重试",
+            ) from None
         return [
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, int(port)))
             for ip in ips

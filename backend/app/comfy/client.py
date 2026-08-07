@@ -15,8 +15,7 @@ def _unavailable_error(exc: Exception) -> ComfyUnavailableError:
         )
     if isinstance(exc, httpx.ConnectError):
         return ComfyUnavailableError(
-            "无法连接远程 ComfyUI：连接建立失败，可能是隧道未启动、"
-            "地址已过期或网络不可达，请检查 API 地址后重试"
+            f"无法连接远程 ComfyUI：{exc}"
         )
     return ComfyUnavailableError(str(exc))
 
