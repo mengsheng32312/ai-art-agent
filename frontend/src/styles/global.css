@@ -3,6 +3,8 @@
   --radius-lg: var(--radius);
   --radius-md: var(--radius);
   --radius-sm: var(--radius);
+  --padding-y: 4px;
+  --padding-x: 8px;
 }
 
 /* 全局控件圆角：最后加载，覆盖组件库和页面局部样式。 */
@@ -97,4 +99,12 @@
   border-start-end-radius: 0 !important;
   border-end-start-radius: 0 !important;
   border-end-end-radius: 0 !important;
+}
+
+
+:is(
+  .ant-btn
+){
+  padding: var(--padding-y) var(--padding-x) !important;
+  box-sizing: content-box;
 }
