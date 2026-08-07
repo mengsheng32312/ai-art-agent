@@ -28,7 +28,9 @@ const kindFilter = ref<"all" | ModelItem["kind"]>("all")
 const remoteKindFilter = ref<"all" | ModelItem["kind"]>("all")
 const localKindFilter = ref<"all" | ModelItem["kind"]>("all")
 const usageFilter = ref<"all" | ModelItem["usage"]>("all")
-const downloadTarget = ref<"remote" | "local">("local")
+const downloadTarget = ref<"remote" | "local">(
+  props.config.mode === "remote" ? "remote" : "local",
+)
 const onlinePage = ref(1)
 const onlinePageSize = 12
 const kindFilterOptions = [
@@ -77,6 +79,14 @@ watch(kindFilter, () => {
 watch(usageFilter, () => {
   onlinePage.value = 1
 })
+watch(
+  () => props.config.mode,
+  mode => {
+    if (mode === "remote" && downloadTarget.value === "local") {
+      downloadTarget.value = "remote"
+    }
+  },
+)
 
 function kindText(kind: ModelItem["kind"]) {
   return {
