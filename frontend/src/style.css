@@ -1102,6 +1102,18 @@ body {
   margin-bottom: 10px;
 }
 
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.field-help-icon {
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: help;
+}
+
 .ant-space {
   gap: 8px !important;
 }

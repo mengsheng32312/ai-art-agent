@@ -68,12 +68,6 @@ const pageMeta: Record<Page, { label: string; hint: string }> = {
   settings: { label: "连接设置", hint: "ComfyUI" },
 }
 
-const quickPages: Array<{ label: string; value: Page }> = [
-  { label: "生成", value: "generate" },
-  { label: "模型", value: "models" },
-  { label: "设置", value: "settings" },
-]
-
 const config = reactive<Config>({
   mode: "remote",
   comfyui_path: null,
@@ -133,21 +127,6 @@ function validateSettings() {
     return false
   }
   return true
-}
-
-async function checkConnection() {
-  connectionMessage.value = "正在测试连接..."
-  try {
-    const state = await api.status()
-    connected.value = state.connected
-    connectionMessage.value = state.message
-    checkpoints.value = state.connected ? await api.checkpoints() : []
-    if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
-  } catch (error) {
-    connected.value = false
-    checkpoints.value = []
-    connectionMessage.value = error instanceof Error ? error.message : "连接失败"
-  }
 }
 
 async function checkCandidateConnection() {
@@ -250,6 +229,8 @@ async function refreshConnection() {
         await api.saveConfig(config)
         message.success("测试连接成功，设置已保存")
         void refreshModels()
+        void loadVideoModels()
+        void loadVaeModels()
       }
       return
     }
@@ -264,6 +245,8 @@ async function refreshConnection() {
         await api.saveConfig(config)
         message.success("测试连接成功，设置已保存")
         void refreshModels()
+        void loadVideoModels()
+        void loadVaeModels()
       } else {
         message.error(`测试连接失败：${state.message}`)
       }
@@ -435,14 +418,6 @@ onMounted(async () => {
     if (desktopError) throw new Error(desktopError)
     Object.assign(config, await api.config())
     history.value = await api.history()
-    if (config.mode === "remote" && config.api_url.trim()) {
-      await checkConnection()
-      if (connected.value) {
-        await refreshModels()
-        await loadVideoModels()
-        await loadVaeModels()
-      }
-    }
   } catch (error) {
     connected.value = false
     startupError.value = error instanceof Error ? error.message : String(error)
@@ -478,15 +453,6 @@ onMounted(async () => {
 
           <Space class="header-actions" :size="8">
             <Tag :color="connected ? 'success' : 'default'">{{ connected ? "已连接" : "未连接" }}</Tag>
-            <Button
-              v-for="item in quickPages"
-              :key="item.value"
-              size="small"
-              :type="page === item.value ? 'primary' : 'text'"
-              @click="page = item.value"
-            >
-              {{ item.label }}
-            </Button>
           </Space>
         </Layout.Header>
 
