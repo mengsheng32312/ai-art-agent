@@ -91,8 +91,15 @@ LoRA（`LoraLoader`）插在 CheckpointLoader 之后，KSampler 的 model/clip �
 
 ### Phase 7：回归与交付
 
-- [ ] 全量测试 + 前端构建 + 打包回归
-- [ ] 更新模型库"应用"逻辑覆盖新能力
+- [x] 后端全量回归：57 个测试全部通过（含修复 verify.ps1 的 basetemp 目录缺失 bug）
+- [x] 前端生产构建通过；tauri.conf 校验通过
+- [x] 更新模型库"应用"逻辑覆盖新能力（视频模型按 Wan/AnimateDiff 模式设置 checkpoint 或运动模型）
+- [ ] 前端 vitest 回归：8 个既有失败（desktop.test 环境缺 window、generation.test 默认 512 vs 期望 1024、global.test 圆角 6px vs 期望 10px），均非本次能力开发引入
+- [ ] Rust/打包回归：本机 rustup 未配置默认 toolchain，cargo test 无法运行；NSIS 打包未执行
+
+## 完成情况
+
+Phase 1-6 全部完成并逐个提交；Phase 7 代码层回归通过，打包回归待环境就绪后执行。
 
 ## 边界与取舍
 
