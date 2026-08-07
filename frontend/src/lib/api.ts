@@ -77,11 +77,20 @@ export type ManagerQueueStatus = {
   is_processing: boolean
 }
 
+export type UploadResponse = {
+  name: string
+  path: string | null
+  mode: "local" | "remote"
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
+    const headers: Record<string, string> = init?.body instanceof FormData
+      ? {}
+      : { "Content-Type": "application/json" }
     response = await fetch(`${agentApiBase()}${path}`, {
-      headers: { "Content-Type": "application/json" },
+      headers,
       ...init,
     })
   } catch {
@@ -112,6 +121,14 @@ export const api = {
     request<{ ok: boolean }>(`/history/${id}`, { method: "DELETE" }),
   models: () => request<ModelCatalogResponse>("/models/catalog"),
   managerStatus: () => request<ManagerQueueStatus>("/models/manager/status"),
+  uploadFile: (file: File, kind: "image" | "video") => {
+    const form = new FormData()
+    form.append("file", file)
+    return request<UploadResponse>(`/upload?kind=${kind}`, {
+      method: "POST",
+      body: form,
+    })
+  },
   downloadModel: (model_id: string, destination: "remote" | "local" = "local") =>
     request<ModelItem>("/models/download", {
       method: "POST",

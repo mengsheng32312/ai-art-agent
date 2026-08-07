@@ -51,6 +51,11 @@ class FakeModelComfyClient:
             "is_processing": True,
         }
 
+    async def upload_media(self, kind: str, data: bytes, filename: str) -> str:
+        self.upload_calls = getattr(self, "upload_calls", [])
+        self.upload_calls.append((kind, filename))
+        return f"remote-{filename}"
+
 
 def test_model_catalog_separates_remote_and_local_models(tmp_path: Path) -> None:
     comfy_root = tmp_path / "ComfyUI"
@@ -144,3 +149,57 @@ def test_manager_queue_status_endpoint(tmp_path: Path) -> None:
         "in_progress_count": 1,
         "is_processing": True,
     }
+
+
+def test_upload_remote_forwards_to_comfy(tmp_path: Path) -> None:
+    fake = FakeModelComfyClient()
+    client = TestClient(
+        create_app(data_dir=tmp_path / "data", comfy_factory=lambda _: fake)
+    )
+    client.put(
+        "/api/config",
+        json={"mode": "remote", "api_url": "http://comfy"},
+    )
+
+    response = client.post(
+        "/api/upload",
+        params={"kind": "image"},
+        files={"file": ("ref.png", b"png-data", "image/png")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "remote-ref.png",
+        "path": None,
+        "mode": "remote",
+    }
+    assert fake.upload_calls == [("image", "ref.png")]
+
+
+def test_upload_local_writes_to_input_dir(tmp_path: Path) -> None:
+    comfy_root = tmp_path / "ComfyUI"
+    client = TestClient(
+        create_app(data_dir=tmp_path / "data", comfy_factory=lambda _: FakeModelComfyClient())
+    )
+    client.put(
+        "/api/config",
+        json={
+            "mode": "local",
+            "api_url": "http://127.0.0.1:8188",
+            "comfyui_path": str(comfy_root),
+        },
+    )
+
+    response = client.post(
+        "/api/upload",
+        params={"kind": "video"},
+        files={"file": ("clip.mp4", b"mp4-data", "video/mp4")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "clip.mp4",
+        "path": str(comfy_root / "input" / "clip.mp4"),
+        "mode": "local",
+    }
+    assert (comfy_root / "input" / "clip.mp4").read_bytes() == b"mp4-data"

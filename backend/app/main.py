@@ -1,11 +1,12 @@
 import argparse
 from pathlib import Path
 from collections.abc import Callable
+from typing import Literal
 from uuid import uuid4
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 import uvicorn
@@ -23,6 +24,7 @@ from .schemas import (
     ModelCatalogResponse,
     ModelDownloadRequest,
     ModelItem,
+    UploadResponse,
 )
 from .settings import AppConfig, ConfigStore, default_data_dir
 
@@ -317,6 +319,26 @@ def create_app(
             raise HTTPException(
                 status_code=502, detail=f"获取远程下载状态失败：{exc}"
             ) from exc
+
+    @app.post("/api/upload", response_model=UploadResponse)
+    async def upload_file(
+        file: UploadFile,
+        kind: Literal["image", "video"] = Query(default="image"),
+    ) -> UploadResponse:
+        config = store.load()
+        data = await file.read()
+        safe_name = Path(file.filename or "upload.bin").name
+        if config.mode == "remote":
+            if not config.api_url.strip():
+                raise HTTPException(status_code=400, detail="请先填写远程 API 地址")
+            name = await comfy().upload_media(kind, data, safe_name)
+            return UploadResponse(name=name, path=None, mode="remote")
+        if not config.comfyui_path:
+            raise HTTPException(status_code=400, detail="请先在连接设置填写本地模型目录")
+        destination = Path(config.comfyui_path) / "input" / safe_name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+        return UploadResponse(name=destination.name, path=str(destination), mode="local")
 
     return app
 

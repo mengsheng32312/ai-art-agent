@@ -94,3 +94,37 @@ async def test_manager_queue_status_returns_counts() -> None:
         "in_progress_count": 1,
         "is_processing": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_upload_media_forwards_to_remote_input() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/upload/image":
+            assert request.method == "POST"
+            body = request.read()
+            assert b"ref.png" in body
+            return httpx.Response(
+                200, json={"name": "ref.png", "subfolder": "", "type": "input"}
+            )
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = ComfyClient("http://comfy", http=http)
+        name = await client.upload_media("image", b"png-data", "ref.png")
+
+    assert name == "ref.png"
+
+
+@pytest.mark.asyncio
+async def test_upload_media_uses_video_endpoint() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/upload/video":
+            assert b"clip.mp4" in request.read()
+            return httpx.Response(200, json={"name": "clip.mp4"})
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = ComfyClient("http://comfy", http=http)
+        name = await client.upload_media("video", b"mp4-data", "clip.mp4")
+
+    assert name == "clip.mp4"

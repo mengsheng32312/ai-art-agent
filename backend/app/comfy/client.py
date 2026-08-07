@@ -76,6 +76,40 @@ class ComfyClient:
         response = await self._request("GET", "/manager/queue/status")
         return response.json()
 
+    async def upload_media(self, kind: str, data: bytes, filename: str) -> str:
+        """上传图片/视频到远程 ComfyUI 的 input 目录，返回最终文件名。"""
+        if kind == "video":
+            endpoint, field = "/upload/video", "video"
+        else:
+            endpoint, field = "/upload/image", "image"
+        timeout = httpx.Timeout(connect=30, read=120, write=120, pool=10)
+        try:
+            if self.http:
+                response = await self.http.post(
+                    f"{self.base_url}{endpoint}",
+                    files={field: (filename, data)},
+                    data={"overwrite": "true", "type": "input"},
+                    timeout=timeout,
+                )
+            else:
+                async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+                    response = await client.post(
+                        f"{self.base_url}{endpoint}",
+                        files={field: (filename, data)},
+                        data={"overwrite": "true", "type": "input"},
+                    )
+        except httpx.TimeoutException as exc:
+            raise _unavailable_error(exc) from exc
+        except httpx.ConnectError as exc:
+            raise _unavailable_error(exc) from exc
+        if response.status_code == 530:
+            raise ComfyUnavailableError(
+                "远程 ComfyUI 暂时不可用：连接隧道已断开，请重新运行 Colab 并更新 API 地址"
+            )
+        response.raise_for_status()
+        info = response.json()
+        return str(info.get("name") or filename)
+
     async def download_model_file(
         self, url: str, filename: str, destination_dir: Path
     ) -> Path:

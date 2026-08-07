@@ -80,3 +80,9 @@ class ManagerQueueStatus(BaseModel):
     done_count: int
     in_progress_count: int
     is_processing: bool
+
+
+class UploadResponse(BaseModel):
+    name: str
+    path: str | None = None
+    mode: Literal["local", "remote"]

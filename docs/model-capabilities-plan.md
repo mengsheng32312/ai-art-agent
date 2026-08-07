@@ -51,9 +51,9 @@ LoRA（`LoraLoader`）插在 CheckpointLoader 之后，KSampler 的 model/clip �
 
 ### Phase 1：上传基础设施
 
-- [ ] 后端：`ComfyClient.upload_media`（远程转发）、本地落盘、`POST /api/upload`、`UploadResponse` schema
-- [ ] 前端：`api.uploadFile`、上传控件与预览
-- [ ] 验收：本地与远程模式各上传一张图/一段视频，返回文件名；测试通过
+- [x] 后端：`ComfyClient.upload_media`（远程转发）、本地落盘、`POST /api/upload`、`UploadResponse` schema
+- [x] 前端：`api.uploadFile`、上传控件与预览（控件随 Phase 2 图片页一起落地）
+- [x] 验收：本地与远程模式各上传一张图/一段视频，返回文件名；测试通过（10 个相关测试通过）
 
 ### Phase 2：参考图重绘（img2img）
 
