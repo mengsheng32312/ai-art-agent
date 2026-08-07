@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 import { Alert, Button, Card, Col, Empty, Pagination, Row, Segmented, Space, Tag, Tooltip } from "ant-design-vue"
-import { CheckOutlined, CloudDownloadOutlined, ReloadOutlined } from "@ant-design/icons-vue"
+import { CloudDownloadOutlined, ReloadOutlined } from "@ant-design/icons-vue"
 import { proxiedImageUrl, type Config, type ModelCatalogResponse, type ModelItem } from "../lib/api"
 
 const props = defineProps<{
   config: Config
   connected: boolean
   catalog: ModelCatalogResponse
-  selectedCheckpoint: string
   loading: boolean
   downloadingId: string
 }>()
@@ -179,12 +178,10 @@ function sourceText(source: ModelItem["source"]) {
               <Space>
                 <Tag color="success">可用于生成</Tag>
                 <Button
-                  :type="selectedCheckpoint === item.filename ? 'primary' : 'default'"
                   :disabled="item.kind !== 'checkpoint'"
                   @click="emit('select', item)"
                 >
-                  <template v-if="selectedCheckpoint === item.filename" #icon><CheckOutlined /></template>
-                  {{ selectedCheckpoint === item.filename ? "已选择" : "使用" }}
+                  使用
                 </Button>
               </Space>
             </Space>
@@ -235,11 +232,10 @@ function sourceText(source: ModelItem["source"]) {
                 <Tag>本机文件</Tag>
                 <Tooltip :title="config.mode === 'remote' ? '远程模式不能使用本地模型，请切换到本地模式后使用' : ''">
                   <Button
-                    :type="selectedCheckpoint === item.filename ? 'primary' : 'default'"
                     :disabled="item.kind !== 'checkpoint' || config.mode === 'remote'"
                     @click="emit('select', item)"
                   >
-                    {{ selectedCheckpoint === item.filename ? "已选择" : "使用" }}
+                    使用
                   </Button>
                 </Tooltip>
               </Space>
@@ -309,12 +305,10 @@ function sourceText(source: ModelItem["source"]) {
                 </a>
                 <Button
                   v-if="item.installed"
-                  :type="selectedCheckpoint === item.filename ? 'primary' : 'default'"
                   :disabled="item.kind !== 'checkpoint'"
                   @click="emit('select', item)"
                 >
-                  <template v-if="selectedCheckpoint === item.filename" #icon><CheckOutlined /></template>
-                  {{ selectedCheckpoint === item.filename ? "已选择" : "使用" }}
+                  使用
                 </Button>
                 <Tooltip v-else :title="downloadTarget === 'local' ? downloadDisabledReason : ''">
                   <Button

@@ -493,7 +493,6 @@ onMounted(async () => {
             :config="config"
             :connected="connected"
             :catalog="modelCatalog"
-            :selected-checkpoint="form.checkpoint"
             :loading="loadingModels"
             :downloading-id="downloadingModelId"
             @refresh="refreshModels"
