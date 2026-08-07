@@ -1037,6 +1037,24 @@ body {
   align-items: center;
 }
 
+.model-list-row .model-content > .ant-space:last-child {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1280px) {
+  .model-list-row .model-content {
+    grid-template-columns: 120px minmax(0, 1fr);
+    row-gap: 10px !important;
+  }
+
+  .model-list-row .model-content > .ant-space:last-child {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
 .model-toolbar-content {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
