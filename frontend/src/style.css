@@ -2,6 +2,7 @@
   --accent: #007aff;
   --accent-hover: #0a84ff;
   --accent-soft: rgba(0, 122, 255, 0.1);
+  --accent-border: rgba(0, 122, 255, 0.4);
   --bg: #f5f5f7;
   --surface: #ffffff;
   --surface-soft: #fafafc;
@@ -979,7 +980,7 @@ body {
 }
 
 .model-card {
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
 }
@@ -987,6 +988,21 @@ body {
 .model-card:hover {
   box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
+  border-color: var(--accent-border);
+}
+
+.history-list-item:hover {
+  border-color: var(--accent-border);
+}
+
+/* 可交互控件 hover 时显示淡色边框 */
+.ant-btn-default:hover,
+.ant-btn-text:hover,
+.ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+.ant-input-number:not(.ant-input-number-disabled):hover,
+.ant-input-affix-wrapper:not(.ant-input-affix-wrapper-disabled):hover,
+.ant-input-textarea:hover .ant-input {
+  border-color: var(--accent-border) !important;
 }
 
 .model-content {

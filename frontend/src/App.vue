@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue"
+import { computed, onMounted, reactive, ref, watch } from "vue"
 import { Button, ConfigProvider, Layout, message, Space, Tag } from "ant-design-vue"
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons-vue"
 import AppSidebar from "./components/AppSidebar.vue"
@@ -54,6 +54,7 @@ const busy = ref(false)
 const testingConnection = ref(false)
 const loadingModels = ref(false)
 const downloadingModelId = ref("")
+const catalogLoaded = ref(false)
 const notice = ref("")
 const noticeType = ref<"info" | "success" | "error">("info")
 const submissionAttempted = ref(false)
@@ -153,6 +154,7 @@ async function refreshModels() {
   try {
     const catalog = await api.models()
     modelCatalog.value = catalog
+    catalogLoaded.value = true
     connected.value = catalog.connected
     connectionMessage.value = catalog.message
     checkpoints.value = catalog.remote_models
@@ -161,10 +163,17 @@ async function refreshModels() {
     if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
   } catch (error) {
     message.error(error instanceof Error ? error.message : "模型目录加载失败")
+    catalogLoaded.value = true
   } finally {
     loadingModels.value = false
   }
 }
+
+watch(page, value => {
+  if (value === "models" && connected.value && !catalogLoaded.value) {
+    void refreshModels()
+  }
+})
 
 function selectModel(model: ModelItem) {
   if (model.source === "local" && config.mode === "remote") {
@@ -228,7 +237,6 @@ async function refreshConnection() {
       if (ready) {
         await api.saveConfig(config)
         message.success("测试连接成功，设置已保存")
-        void refreshModels()
         void loadVideoModels()
         void loadVaeModels()
       }
@@ -244,7 +252,6 @@ async function refreshConnection() {
         if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
         await api.saveConfig(config)
         message.success("测试连接成功，设置已保存")
-        void refreshModels()
         void loadVideoModels()
         void loadVaeModels()
       } else {
@@ -493,6 +500,7 @@ onMounted(async () => {
             :config="config"
             :connected="connected"
             :catalog="modelCatalog"
+            :catalog-loaded="catalogLoaded"
             :loading="loadingModels"
             :downloading-id="downloadingModelId"
             @refresh="refreshModels"

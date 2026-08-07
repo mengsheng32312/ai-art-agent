@@ -8,6 +8,7 @@ const props = defineProps<{
   config: Config
   connected: boolean
   catalog: ModelCatalogResponse
+  catalogLoaded: boolean
   loading: boolean
   downloadingId: string
 }>()
@@ -126,14 +127,14 @@ function sourceText(source: ModelItem["source"]) {
     description="模型管理需要先建立 ComfyUI 连接。请在「连接设置」页面完成连接，连接成功后可在此浏览、选择与下载模型。"
   />
   <Alert
-    v-else-if="!catalog.connected"
+    v-else-if="catalogLoaded && !catalog.connected && !loading"
     type="warning"
     show-icon
     message="模型目录加载失败"
     :description="catalog.message || '请点击「刷新模型」重试。'"
   />
 
-  <template v-else>
+  <template v-else-if="catalogLoaded">
     <Alert
       v-if="config.mode !== 'local' || !config.comfyui_path"
       class="model-section"
