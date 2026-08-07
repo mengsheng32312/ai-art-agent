@@ -16,8 +16,10 @@ export type GenerationRequest = {
   negative_prompt: string
   checkpoint: string
   media_type: "image" | "video"
+  video_mode: "t2v" | "i2v" | "v2v"
   vae: string
   reference_image: string
+  reference_video: string
   loras: LoRAConfig[]
   controlnet: ControlNetConfig | null
   hires: HiresConfig | null

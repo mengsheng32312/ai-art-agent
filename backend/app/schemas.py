@@ -29,8 +29,10 @@ class GenerationRequest(BaseModel):
     negative_prompt: str = ""
     checkpoint: str = Field(min_length=1)
     media_type: Literal["image", "video"] = "image"
+    video_mode: Literal["t2v", "i2v", "v2v"] = "t2v"
     vae: str | None = None
     reference_image: str = ""
+    reference_video: str = ""
     frames: int = Field(default=16, ge=2, le=120)
     motion_model: str | None = None
     beta_schedule: str = "sqrt_linear (AnimateDiff)"

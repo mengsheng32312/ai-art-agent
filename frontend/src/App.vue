@@ -205,9 +205,13 @@ function selectModel(model: ModelItem) {
     return
   }
   if (model.usage === "video") {
-    videoForm.motion_model = model.filename
-    if (!motionModels.value.includes(model.filename)) {
-      motionModels.value.push(model.filename)
+    if (videoForm.video_mode === "i2v" || videoForm.video_mode === "v2v") {
+      videoForm.checkpoint = model.filename
+    } else {
+      videoForm.motion_model = model.filename
+      if (!motionModels.value.includes(model.filename)) {
+        motionModels.value.push(model.filename)
+      }
     }
     page.value = "video"
     message.success(`已选择视频模型：${model.name}`)

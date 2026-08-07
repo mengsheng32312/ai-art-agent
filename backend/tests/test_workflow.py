@@ -265,3 +265,92 @@ def test_workflow_without_hires_keeps_single_sampler() -> None:
     assert "30" not in workflow
     assert "31" not in workflow
     assert workflow["6"]["inputs"]["samples"] == ["5", 0]
+
+
+def test_wan_i2v_workflow_builds_image_to_video_chain() -> None:
+    request = GenerationRequest(
+        prompt="a cat walking",
+        checkpoint="wan2.2_i2v_14B_fp8_scaled.safetensors",
+        media_type="video",
+        video_mode="i2v",
+        reference_image="first.png",
+        frames=41,
+        width=832,
+        height=480,
+        fps=16,
+    )
+
+    workflow = build_text_to_video_workflow(request)
+
+    assert workflow["1"]["class_type"] == "UNETLoader"
+    assert workflow["1"]["inputs"]["unet_name"] == (
+        "wan2.2_i2v_14B_fp8_scaled.safetensors"
+    )
+    assert workflow["2"]["class_type"] == "CLIPLoader"
+    assert workflow["2"]["inputs"]["type"] == "wan"
+    assert workflow["3"]["class_type"] == "VAELoader"
+    assert workflow["6"]["class_type"] == "LoadImage"
+    assert workflow["6"]["inputs"]["image"] == "first.png"
+    assert workflow["9"]["class_type"] == "WanImageToVideo"
+    assert workflow["9"]["inputs"]["start_image"] == ["6", 0]
+    assert workflow["9"]["inputs"]["length"] == 41
+    assert workflow["10"]["inputs"]["model"] == ["1", 0]
+    assert workflow["12"]["class_type"] == "SaveAnimatedWEBP"
+    assert workflow["12"]["inputs"]["fps"] == 16
+
+
+def test_wan_v2v_workflow_extracts_first_and_last_frames() -> None:
+    request = GenerationRequest(
+        prompt="a cat walking",
+        checkpoint="wan2.2_v2v_14B_fp8_scaled.safetensors",
+        media_type="video",
+        video_mode="v2v",
+        reference_video="clip.mp4",
+        frames=33,
+    )
+
+    workflow = build_text_to_video_workflow(request)
+
+    assert workflow["6"]["class_type"] == "LoadVideo"
+    assert workflow["6"]["inputs"]["video"] == "clip.mp4"
+    assert workflow["6"]["inputs"]["frame_load_cap"] == 33
+    assert workflow["7"]["class_type"] == "ImageFromBatch"
+    assert workflow["7"]["inputs"]["batch_index"] == 0
+    assert workflow["8"]["class_type"] == "ImageFromBatch"
+    assert workflow["8"]["inputs"]["batch_index"] == 32
+    assert workflow["9"]["class_type"] == "WanVideoToVideo"
+    assert workflow["9"]["inputs"]["start_image"] == ["7", 0]
+    assert workflow["9"]["inputs"]["end_image"] == ["8", 0]
+
+
+def test_wan_workflow_applies_loras_to_model_and_clip() -> None:
+    request = GenerationRequest(
+        prompt="a cat walking",
+        checkpoint="wan2.2_i2v_14B_fp8_scaled.safetensors",
+        media_type="video",
+        video_mode="i2v",
+        reference_image="first.png",
+        loras=[{"name": "style.safetensors", "model_strength": 0.9, "clip_strength": 0.7}],
+    )
+
+    workflow = build_text_to_video_workflow(request)
+
+    assert workflow["20"]["class_type"] == "LoraLoader"
+    assert workflow["20"]["inputs"]["model"] == ["1", 0]
+    assert workflow["20"]["inputs"]["clip"] == ["2", 0]
+    assert workflow["10"]["inputs"]["model"] == ["20", 0]
+    assert workflow["4"]["inputs"]["clip"] == ["20", 1]
+
+
+def test_animate_diff_t2v_workflow_unchanged_by_default() -> None:
+    request = GenerationRequest(
+        prompt="a cat walking",
+        checkpoint="model.safetensors",
+        media_type="video",
+        motion_model="mm_sd_v15_v2.ckpt",
+    )
+
+    workflow = build_text_to_video_workflow(request)
+
+    assert workflow["4"]["class_type"] == "ADE_AnimateDiffLoaderGen1"
+    assert "WanImageToVideo" not in str(workflow)

@@ -6,8 +6,10 @@ export function createDefaultGenerationRequest(): GenerationRequest {
     negative_prompt: "",
     checkpoint: "",
     media_type: "image",
+    video_mode: "t2v",
     vae: "",
     reference_image: "",
+    reference_video: "",
     loras: [],
     controlnet: null,
     hires: null,
@@ -37,12 +39,24 @@ export function canSubmitGeneration(
   busy: boolean,
 ): boolean {
   const motionOk =
-    request.media_type !== "video" || Boolean(request.motion_model?.trim())
+    request.media_type !== "video" ||
+    request.video_mode !== "t2v" ||
+    Boolean(request.motion_model?.trim())
+  const mediaOk =
+    request.media_type !== "video" ||
+    request.video_mode !== "i2v" ||
+    Boolean(request.reference_image?.trim())
+  const videoOk =
+    request.media_type !== "video" ||
+    request.video_mode !== "v2v" ||
+    Boolean(request.reference_video?.trim())
   return (
     connected &&
     Boolean(request.prompt.trim()) &&
     Boolean(request.checkpoint) &&
     motionOk &&
+    mediaOk &&
+    videoOk &&
     !busy
   )
 }
@@ -57,8 +71,12 @@ export function getGenerationBlockedReason(
   if (busy) return "正在生成，请稍候"
   if (!connected) return "请先在连接设置中完成 ComfyUI 连接"
   if (!request.prompt.trim()) return "请输入画面描述"
-  if (request.media_type === "video" && !request.motion_model?.trim())
+  if (request.media_type === "video" && request.video_mode === "t2v" && !request.motion_model?.trim())
     return "请选择运动模型"
+  if (request.media_type === "video" && request.video_mode === "i2v" && !request.reference_image?.trim())
+    return "请上传参考图"
+  if (request.media_type === "video" && request.video_mode === "v2v" && !request.reference_video?.trim())
+    return "请上传参考视频"
   if (!checkpoints.length) return "当前没有可用模型，请检查 ComfyUI 模型目录"
   if (!request.checkpoint) return "请选择模型"
   return ""

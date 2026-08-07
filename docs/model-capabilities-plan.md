@@ -83,9 +83,11 @@ LoRA（`LoraLoader`）插在 CheckpointLoader 之后，KSampler 的 model/clip �
 
 ### Phase 6：图生视频 / 视频生视频
 
-- [ ] 后端：视频三种模式分支、Wan 三件套模型加载、首尾帧提取
-- [ ] 前端：视频生成页模式切换（文生视频/图生视频/视频生视频）、参考图/参考视频上传
-- [ ] 验收：三种模式均可生成；模型库按 usage 过滤正确
+- [x] 后端：视频三种模式分支（`video_mode`）、Wan 三件套模型加载（UNETLoader + CLIPLoader + VAELoader）、V2V 首尾帧提取（LoadVideo + ImageFromBatch）
+- [x] 前端：视频生成页模式切换（文生视频/图生视频/视频生视频）、参考图/参考视频上传、按模式校验
+- [x] 验收：三种模式均可生成；模型库"应用"按模式设置 checkpoint 或运动模型（全量 57 个后端测试通过）
+
+实现说明：Wan 模式使用 ComfyUI 内置节点（WanImageToVideo / WanVideoToVideo），CLIP 固定 `umt5_xxl_fp8_e4m3fn_scaled.safetensors`、VAE 固定 `wan2.2_vae.safetensors`，UNET 使用视频页选中的 checkpoint。
 
 ### Phase 7：回归与交付
 

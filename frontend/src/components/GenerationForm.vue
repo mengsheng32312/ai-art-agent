@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { Alert, Button, Card, Checkbox, Form, Input, InputNumber, message, Select, Space, Tooltip, Upload } from "ant-design-vue"
+import { Alert, Button, Card, Checkbox, Form, Input, InputNumber, message, Segmented, Select, Space, Tooltip, Upload } from "ant-design-vue"
 import { PlusOutlined, ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
 import { api, type GenerationRequest } from "../lib/api"
 import { parseWorkflowFile } from "../lib/workflow"
@@ -28,6 +28,8 @@ const referenceImageUploading = ref(false)
 const referenceImagePreview = ref("")
 const controlnetUploading = ref(false)
 const controlnetPreview = ref("")
+const referenceVideoUploading = ref(false)
+const referenceVideoName = ref("")
 
 const samplerOptions = [
   "euler",
@@ -203,6 +205,32 @@ function toggleHires(enabled: boolean) {
     ? { scale: 2, steps: 12, denoise: 0.5 }
     : null
 }
+
+const videoModeOptions = [
+  { label: "文生视频", value: "t2v" },
+  { label: "图生视频", value: "i2v" },
+  { label: "视频生视频", value: "v2v" },
+]
+
+async function onReferenceVideoUpload(file: File) {
+  referenceVideoUploading.value = true
+  try {
+    const result = await api.uploadFile(file, "video")
+    props.form.reference_video = result.name
+    referenceVideoName.value = result.name
+    message.success("参考视频已上传")
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "参考视频上传失败")
+  } finally {
+    referenceVideoUploading.value = false
+  }
+  return false
+}
+
+function clearReferenceVideo() {
+  props.form.reference_video = ""
+  referenceVideoName.value = ""
+}
 </script>
 
 <template>
@@ -221,6 +249,16 @@ function toggleHires(enabled: boolean) {
       />
     </template>
     <Form layout="vertical">
+      <Form.Item v-if="mode === 'video'" class="step-field">
+        <template #label>
+          <FieldLabel
+            label="生成方式"
+            help="文生视频使用 AnimateDiff 运动模型；图生视频以参考图为首帧生成视频（Wan）；视频生视频以参考视频首尾帧约束运动（Wan）。"
+          />
+        </template>
+        <Segmented v-model:value="form.video_mode" :options="videoModeOptions" />
+      </Form.Item>
+
       <div class="step-title">
         <span class="step-badge">1</span>
         <span class="step-name">模型加载</span>
@@ -243,7 +281,7 @@ function toggleHires(enabled: boolean) {
           <Select.Option v-for="item in checkpoints" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
         </Select>
       </Form.Item>
-      <Space v-if="mode === 'video'" class="form-row" align="start">
+      <Space v-if="mode === 'video' && form.video_mode === 't2v'" class="form-row" align="start">
         <Form.Item class="form-main" required>
           <template #label>
             <FieldLabel label="运动模型" help="视频生成所需的 AnimateDiff 运动模型，需与 checkpoint 匹配使用。" />
@@ -262,16 +300,18 @@ function toggleHires(enabled: boolean) {
         </Form.Item>
       </Space>
 
-      <div v-if="mode === 'image'" class="step-title">
+      <div v-if="mode === 'image' || (mode === 'video' && form.video_mode === 'i2v')" class="step-title">
         <span class="step-badge">ref</span>
         <span class="step-name">参考图</span>
-        <span class="step-node">LoadImage + VAEEncode</span>
+        <span class="step-node">{{ mode === "image" ? "LoadImage + VAEEncode" : "WanImageToVideo 首帧" }}</span>
       </div>
-      <Form.Item v-if="mode === 'image'" class="step-field">
+      <Form.Item v-if="mode === 'image' || (mode === 'video' && form.video_mode === 'i2v')" class="step-field">
         <template #label>
           <FieldLabel
-            label="参考图重绘"
-            help="上传参考图后按图重绘：参考图作为采样起点，重绘幅度（denoise）越低越接近原图；输出尺寸跟随参考图，画布宽高将被忽略。"
+            :label="mode === 'image' ? '参考图重绘' : '参考图（视频首帧）'"
+            :help="mode === 'image'
+              ? '上传参考图后按图重绘：参考图作为采样起点，重绘幅度（denoise）越低越接近原图；输出尺寸跟随参考图，画布宽高将被忽略。'
+              : '上传一张图作为视频首帧，模型将推断后续运动（Wan I2V）。'"
           />
         </template>
         <Space wrap>
@@ -293,6 +333,36 @@ function toggleHires(enabled: boolean) {
           />
           <span v-if="form.reference_image" class="field-help">{{ form.reference_image }}</span>
           <Button v-if="form.reference_image" size="small" @click="clearReferenceImage">
+            移除
+          </Button>
+        </Space>
+      </Form.Item>
+
+      <div v-if="mode === 'video' && form.video_mode === 'v2v'" class="step-title">
+        <span class="step-badge">refv</span>
+        <span class="step-name">参考视频</span>
+        <span class="step-node">LoadVideo 首尾帧</span>
+      </div>
+      <Form.Item v-if="mode === 'video' && form.video_mode === 'v2v'" class="step-field">
+        <template #label>
+          <FieldLabel
+            label="参考视频"
+            help="上传参考视频，取其首尾帧约束输出视频的运动；建议帧数不少于生成帧数（Wan V2V）。"
+          />
+        </template>
+        <Space wrap>
+          <Upload
+            :show-upload-list="false"
+            accept="video/*"
+            :before-upload="onReferenceVideoUpload"
+          >
+            <Button :loading="referenceVideoUploading">
+              <template #icon><UploadOutlined /></template>
+              上传参考视频
+            </Button>
+          </Upload>
+          <span v-if="form.reference_video" class="field-help">{{ referenceVideoName || form.reference_video }}</span>
+          <Button v-if="form.reference_video" size="small" @click="clearReferenceVideo">
             移除
           </Button>
         </Space>
