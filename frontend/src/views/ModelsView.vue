@@ -28,9 +28,6 @@ const kindFilter = ref<"all" | ModelItem["kind"]>("all")
 const remoteKindFilter = ref<"all" | ModelItem["kind"]>("all")
 const localKindFilter = ref<"all" | ModelItem["kind"]>("all")
 const usageFilter = ref<"all" | ModelItem["usage"]>("all")
-const downloadTarget = ref<"remote" | "local">(
-  props.config.mode === "remote" ? "remote" : "local",
-)
 const onlinePage = ref(1)
 const onlinePageSize = 12
 const kindFilterOptions = [
@@ -79,14 +76,6 @@ watch(kindFilter, () => {
 watch(usageFilter, () => {
   onlinePage.value = 1
 })
-watch(
-  () => props.config.mode,
-  mode => {
-    if (mode === "remote" && downloadTarget.value === "local") {
-      downloadTarget.value = "remote"
-    }
-  },
-)
 
 function kindText(kind: ModelItem["kind"]) {
   return {
@@ -274,14 +263,6 @@ function sourceText(source: ModelItem["source"]) {
         <Space class="model-toolbar-content model-filter-row">
           <Segmented v-model:value="usageFilter" :options="usageFilterOptions" />
           <Segmented v-model:value="kindFilter" :options="kindFilterOptions" />
-          <Segmented
-            v-if="config.mode === 'remote'"
-            v-model:value="downloadTarget"
-            :options="[
-              { label: '下载到远程设备', value: 'remote' },
-              { label: '下载到本地路径', value: 'local' },
-            ]"
-          />
         </Space>
         <Empty
           v-if="!filteredOnlineModels.length"
@@ -320,17 +301,27 @@ function sourceText(source: ModelItem["source"]) {
                 >
                   使用
                 </Button>
-                <Tooltip v-else :title="downloadTarget === 'local' ? downloadDisabledReason : ''">
+                <Space v-else>
                   <Button
-                    type="primary"
-                    :disabled="downloadTarget === 'local' && !canDownloadLocal"
+                    v-if="config.mode === 'remote'"
                     :loading="downloadingId === item.id"
-                    @click="emit('download', item.id, downloadTarget)"
+                    @click="emit('download', item.id, 'remote')"
                   >
                     <template #icon><CloudDownloadOutlined /></template>
-                    {{ config.mode === 'remote' && downloadTarget === 'remote' ? '下载到远程' : '下载到本地' }}
+                    下载到远程
                   </Button>
-                </Tooltip>
+                  <Tooltip :title="!canDownloadLocal ? downloadDisabledReason : ''">
+                    <Button
+                      type="primary"
+                      :disabled="!canDownloadLocal"
+                      :loading="downloadingId === item.id"
+                      @click="emit('download', item.id, 'local')"
+                    >
+                      <template #icon><CloudDownloadOutlined /></template>
+                      {{ config.mode === 'local' ? '下载模型' : '下载到本地' }}
+                    </Button>
+                  </Tooltip>
+                </Space>
               </Space>
             </Space>
           </Card>
