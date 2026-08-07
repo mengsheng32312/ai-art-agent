@@ -24,11 +24,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{ generate: []; goModels: [] }>()
 const fileInput = ref<HTMLInputElement | null>(null)
-const referenceImageUploading = ref(false)
+const uploading = ref(false)
+const pendingFiles = ref<Record<string, File>>({})
 const referenceImagePreview = ref("")
-const controlnetUploading = ref(false)
 const controlnetPreview = ref("")
-const referenceVideoUploading = ref(false)
 const referenceVideoName = ref("")
 
 const samplerOptions = [
@@ -105,8 +104,44 @@ const betaScheduleOptions = [
   "squaredcos_cap_v2",
 ]
 
-function submit() {
-  emit("generate")
+async function submit() {
+  if (uploading.value || props.busy) return
+  const keys = Object.keys(pendingFiles.value)
+  if (!keys.length) {
+    emit("generate")
+    return
+  }
+  uploading.value = true
+  try {
+    for (const key of keys) {
+      const file = pendingFiles.value[key]
+      const kind = key === "reference_video" ? "video" : "image"
+      const result = await api.uploadFile(file, kind)
+      if (key === "reference_image") {
+        props.form.reference_image = result.name
+      } else if (key === "controlnet") {
+        if (!props.form.controlnet) {
+          props.form.controlnet = {
+            model: "",
+            preprocessor: "canny",
+            image: "",
+            strength: 1,
+            start_percent: 0,
+            end_percent: 1,
+          }
+        }
+        props.form.controlnet.image = result.name
+      } else {
+        props.form.reference_video = result.name
+      }
+    }
+    pendingFiles.value = {}
+    emit("generate")
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "参考文件上传失败")
+  } finally {
+    uploading.value = false
+  }
 }
 
 async function onImportFile(event: Event) {
@@ -131,22 +166,15 @@ async function onImportFile(event: Event) {
   }
 }
 
-async function onReferenceImageUpload(file: File) {
-  referenceImageUploading.value = true
-  try {
-    const result = await api.uploadFile(file, "image")
-    props.form.reference_image = result.name
-    referenceImagePreview.value = URL.createObjectURL(file)
-    message.success("参考图已上传")
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "参考图上传失败")
-  } finally {
-    referenceImageUploading.value = false
-  }
+function selectReferenceImage(file: File) {
+  pendingFiles.value["reference_image"] = file
+  props.form.reference_image = file.name
+  referenceImagePreview.value = URL.createObjectURL(file)
   return false
 }
 
 function clearReferenceImage() {
+  delete pendingFiles.value["reference_image"]
   props.form.reference_image = ""
   referenceImagePreview.value = ""
 }
@@ -169,33 +197,26 @@ const preprocessorOptions = [
   { label: "原始图直传", value: "none" },
 ]
 
-async function onControlnetImageUpload(file: File) {
-  controlnetUploading.value = true
-  try {
-    const result = await api.uploadFile(file, "image")
-    if (!props.form.controlnet) {
-      props.form.controlnet = {
-        model: "",
-        preprocessor: "canny",
-        image: result.name,
-        strength: 1,
-        start_percent: 0,
-        end_percent: 1,
-      }
-    } else {
-      props.form.controlnet.image = result.name
+function selectControlnetImage(file: File) {
+  if (!props.form.controlnet) {
+    props.form.controlnet = {
+      model: "",
+      preprocessor: "canny",
+      image: file.name,
+      strength: 1,
+      start_percent: 0,
+      end_percent: 1,
     }
-    controlnetPreview.value = URL.createObjectURL(file)
-    message.success("ControlNet 条件图已上传")
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "条件图上传失败")
-  } finally {
-    controlnetUploading.value = false
+  } else {
+    props.form.controlnet.image = file.name
   }
+  pendingFiles.value["controlnet"] = file
+  controlnetPreview.value = URL.createObjectURL(file)
   return false
 }
 
 function clearControlnet() {
+  delete pendingFiles.value["controlnet"]
   props.form.controlnet = null
   controlnetPreview.value = ""
 }
@@ -212,22 +233,15 @@ const videoModeOptions = [
   { label: "视频生视频", value: "v2v" },
 ]
 
-async function onReferenceVideoUpload(file: File) {
-  referenceVideoUploading.value = true
-  try {
-    const result = await api.uploadFile(file, "video")
-    props.form.reference_video = result.name
-    referenceVideoName.value = result.name
-    message.success("参考视频已上传")
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "参考视频上传失败")
-  } finally {
-    referenceVideoUploading.value = false
-  }
+function selectReferenceVideo(file: File) {
+  pendingFiles.value["reference_video"] = file
+  props.form.reference_video = file.name
+  referenceVideoName.value = file.name
   return false
 }
 
 function clearReferenceVideo() {
+  delete pendingFiles.value["reference_video"]
   props.form.reference_video = ""
   referenceVideoName.value = ""
 }
@@ -318,9 +332,9 @@ function clearReferenceVideo() {
           <Upload
             :show-upload-list="false"
             accept="image/*"
-            :before-upload="onReferenceImageUpload"
+            :before-upload="selectReferenceImage"
           >
-            <Button :loading="referenceImageUploading">
+            <Button>
               <template #icon><UploadOutlined /></template>
               上传参考图
             </Button>
@@ -331,8 +345,10 @@ function clearReferenceVideo() {
             class="reference-image-preview"
             alt="参考图"
           />
-          <span v-if="form.reference_image" class="field-help">{{ form.reference_image }}</span>
-          <Button v-if="form.reference_image" size="small" @click="clearReferenceImage">
+          <span v-if="pendingFiles.reference_image || form.reference_image" class="field-help">
+            {{ pendingFiles.reference_image?.name || form.reference_image }}
+          </span>
+          <Button v-if="pendingFiles.reference_image || form.reference_image" size="small" @click="clearReferenceImage">
             移除
           </Button>
         </Space>
@@ -354,15 +370,17 @@ function clearReferenceVideo() {
           <Upload
             :show-upload-list="false"
             accept="video/*"
-            :before-upload="onReferenceVideoUpload"
+            :before-upload="selectReferenceVideo"
           >
-            <Button :loading="referenceVideoUploading">
+            <Button>
               <template #icon><UploadOutlined /></template>
               上传参考视频
             </Button>
           </Upload>
-          <span v-if="form.reference_video" class="field-help">{{ referenceVideoName || form.reference_video }}</span>
-          <Button v-if="form.reference_video" size="small" @click="clearReferenceVideo">
+          <span v-if="pendingFiles.reference_video || form.reference_video" class="field-help">
+            {{ pendingFiles.reference_video?.name || form.reference_video }}
+          </span>
+          <Button v-if="pendingFiles.reference_video || form.reference_video" size="small" @click="clearReferenceVideo">
             移除
           </Button>
         </Space>
@@ -475,15 +493,15 @@ function clearReferenceVideo() {
           <Upload
             :show-upload-list="false"
             accept="image/*"
-            :before-upload="onControlnetImageUpload"
+            :before-upload="selectControlnetImage"
           >
-            <Button :loading="controlnetUploading">
+            <Button>
               <template #icon><UploadOutlined /></template>
               上传条件图
             </Button>
           </Upload>
         </Space>
-        <Space v-else wrap>
+        <Space v-else-if="pendingFiles.controlnet || form.controlnet" wrap>
           <img
             v-if="controlnetPreview"
             :src="controlnetPreview"
@@ -659,9 +677,9 @@ function clearReferenceVideo() {
       </Button>
 
       <Tooltip :title="!canGenerate ? blockedReason : ''">
-        <Button type="primary" block size="large" :loading="busy" :disabled="!canGenerate" @click="submit">
+        <Button type="primary" block size="large" :loading="busy || uploading" :disabled="!canGenerate || uploading" @click="submit">
           <template #icon><ThunderboltOutlined /></template>
-          {{ busy ? "正在提交" : mode === "video" ? "开始生成视频" : "开始生成" }}
+          {{ uploading ? "正在上传参考文件" : busy ? "正在提交" : mode === "video" ? "开始生成视频" : "开始生成" }}
         </Button>
       </Tooltip>
 
