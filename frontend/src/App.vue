@@ -54,6 +54,7 @@ const busy = ref(false)
 const testingConnection = ref(false)
 const loadingModels = ref(false)
 const downloadingModelKey = ref("")
+const remoteDownloadingModels = ref<ModelItem[]>([])
 const catalogLoaded = ref(false)
 const notice = ref("")
 const noticeType = ref<"info" | "success" | "error">("info")
@@ -211,7 +212,13 @@ async function downloadModel(id: string, destination: "remote" | "local" = "loca
     const model = await api.downloadModel(id, destination)
     if (destination === "remote") {
       message.success(`已在远程设备添加下载任务：${model.name}`)
+      if (!remoteDownloadingModels.value.some(item => item.id === model.id)) {
+        remoteDownloadingModels.value.push(model)
+      }
       await waitForRemoteDownload(model)
+      remoteDownloadingModels.value = remoteDownloadingModels.value.filter(
+        item => item.id !== model.id,
+      )
     } else {
       message.success(`已添加下载任务：${model.name}`)
       await refreshModels()
@@ -536,6 +543,7 @@ onMounted(async () => {
             :catalog-loaded="catalogLoaded"
             :loading="loadingModels"
             :downloading-key="downloadingModelKey"
+            :downloading-models="remoteDownloadingModels"
             @refresh="refreshModels"
             @select="selectModel"
             @download="downloadModel"

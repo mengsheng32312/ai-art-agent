@@ -15,6 +15,7 @@ const props = defineProps<{
   catalogLoaded: boolean
   loading: boolean
   downloadingKey: string
+  downloadingModels: ModelItem[]
 }>()
 
 const emit = defineEmits<{
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 }>()
 
 const canDownloadLocal = computed(() => Boolean(props.config.comfyui_path))
+const anyDownloading = computed(() => props.downloadingModels.length > 0)
 const downloadDisabledReason = computed(() => {
   if (!props.config.comfyui_path) return "请先在连接设置填写本地模型目录"
   return ""
@@ -108,7 +110,7 @@ function sourceText(source: ModelItem["source"]) {
 
   <Card :bordered="false" class="model-toolbar">
     <div class="model-toolbar-content">
-      <Button :loading="loading" @click="emit('refresh')">
+      <Button :loading="loading" :disabled="loading" @click="emit('refresh')">
         <template #icon><ReloadOutlined /></template>
         刷新模型
       </Button>
@@ -122,6 +124,15 @@ function sourceText(source: ModelItem["source"]) {
       </div>
     </div>
   </Card>
+
+  <Alert
+    v-if="anyDownloading"
+    class="model-section"
+    type="info"
+    show-icon
+    :message="`正在下载：${downloadingModels.map(item => item.name).join('、')}`"
+    description="下载完成后模型会出现在远程可用列表，期间下载按钮已禁用。"
+  />
 
   <Alert
     v-if="!connected"
@@ -323,6 +334,7 @@ function sourceText(source: ModelItem["source"]) {
                   <Button
                     v-if="config.mode === 'remote'"
                     :loading="downloadingKey === item.id + '|remote'"
+                    :disabled="anyDownloading"
                     @click="emit('download', item.id, 'remote')"
                   >
                     <template #icon><CloudDownloadOutlined /></template>
@@ -331,7 +343,7 @@ function sourceText(source: ModelItem["source"]) {
                   <Tooltip :title="!canDownloadLocal ? downloadDisabledReason : ''">
                     <Button
                       type="primary"
-                      :disabled="!canDownloadLocal"
+                      :disabled="anyDownloading || !canDownloadLocal"
                       :loading="downloadingKey === item.id + '|local'"
                       @click="emit('download', item.id, 'local')"
                     >
