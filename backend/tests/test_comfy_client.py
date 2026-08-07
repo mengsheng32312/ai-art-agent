@@ -40,11 +40,16 @@ async def test_client_reads_status_checkpoints_and_queues_prompt() -> None:
 @pytest.mark.asyncio
 async def test_manager_install_model_sends_model_metadata_directly() -> None:
     sent: list[dict] = []
+    started = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal started
         if request.url.path == "/manager/queue/install_model":
             assert request.headers["content-type"].startswith("application/json")
             sent.append(json.loads(request.read().decode()))
+            return httpx.Response(200)
+        if request.url.path == "/manager/queue/start":
+            started += 1
             return httpx.Response(200)
         return httpx.Response(404)
 
@@ -61,3 +66,31 @@ async def test_manager_install_model_sends_model_metadata_directly() -> None:
         await client.manager_install_model(model)
 
     assert sent == [model]
+    assert started == 1
+
+
+@pytest.mark.asyncio
+async def test_manager_queue_status_returns_counts() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/manager/queue/status":
+            return httpx.Response(
+                200,
+                json={
+                    "total_count": 2,
+                    "done_count": 1,
+                    "in_progress_count": 1,
+                    "is_processing": True,
+                },
+            )
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = ComfyClient("http://comfy", http=http)
+        status = await client.manager_queue_status()
+
+    assert status == {
+        "total_count": 2,
+        "done_count": 1,
+        "in_progress_count": 1,
+        "is_processing": True,
+    }

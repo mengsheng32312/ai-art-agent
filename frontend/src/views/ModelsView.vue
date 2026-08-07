@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 import { Alert, Button, Card, Col, Empty, Pagination, Row, Segmented, Space, Spin, Tag, Tooltip } from "ant-design-vue"
-import { CloudDownloadOutlined, ReloadOutlined } from "@ant-design/icons-vue"
+import {
+  CloudDownloadOutlined,
+  LinkOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons-vue"
 import { proxiedImageUrl, type Config, type ModelCatalogResponse, type ModelItem } from "../lib/api"
 
 const props = defineProps<{
@@ -10,7 +14,7 @@ const props = defineProps<{
   catalog: ModelCatalogResponse
   catalogLoaded: boolean
   loading: boolean
-  downloadingId: string
+  downloadingKey: string
 }>()
 
 const emit = defineEmits<{
@@ -299,9 +303,15 @@ function sourceText(source: ModelItem["source"]) {
                 <Tag :color="item.installed ? 'success' : 'default'">
                   {{ item.installed ? "已在远程可用" : "可安装" }}
                 </Tag>
-                <a v-if="item.reference_url" :href="item.reference_url" target="_blank" rel="noopener">
-                  <Button size="small">详情</Button>
-                </a>
+                <Button
+                  v-if="item.reference_url"
+                  :href="item.reference_url"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <template #icon><LinkOutlined /></template>
+                  详情
+                </Button>
                 <Button
                   v-if="item.installed"
                   :disabled="item.kind !== 'checkpoint'"
@@ -309,10 +319,10 @@ function sourceText(source: ModelItem["source"]) {
                 >
                   使用
                 </Button>
-                <Space v-else>
+                <template v-else>
                   <Button
                     v-if="config.mode === 'remote'"
-                    :loading="downloadingId === item.id"
+                    :loading="downloadingKey === item.id + '|remote'"
                     @click="emit('download', item.id, 'remote')"
                   >
                     <template #icon><CloudDownloadOutlined /></template>
@@ -322,14 +332,14 @@ function sourceText(source: ModelItem["source"]) {
                     <Button
                       type="primary"
                       :disabled="!canDownloadLocal"
-                      :loading="downloadingId === item.id"
+                      :loading="downloadingKey === item.id + '|local'"
                       @click="emit('download', item.id, 'local')"
                     >
                       <template #icon><CloudDownloadOutlined /></template>
                       {{ config.mode === 'local' ? '下载模型' : '下载到本地' }}
                     </Button>
                   </Tooltip>
-                </Space>
+                </template>
               </Space>
             </Space>
           </Card>

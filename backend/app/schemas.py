@@ -73,3 +73,10 @@ class ModelCatalogResponse(BaseModel):
 class ModelDownloadRequest(BaseModel):
     model_id: str = Field(min_length=1)
     destination: Literal["remote", "local"] = "local"
+
+
+class ManagerQueueStatus(BaseModel):
+    total_count: int
+    done_count: int
+    in_progress_count: int
+    is_processing: bool

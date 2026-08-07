@@ -24,7 +24,7 @@
         "title": "AI Art Agent",
         "width": 1280,
         "height": 820,
-        "minWidth": 960,
+        "minWidth": 1200,
         "minHeight": 680,
         "center": true
       }

@@ -43,6 +43,14 @@ class FakeModelComfyClient:
     async def manager_install_model(self, model: dict) -> None:
         self.install_calls.append(model)
 
+    async def manager_queue_status(self) -> dict:
+        return {
+            "total_count": 1,
+            "done_count": 0,
+            "in_progress_count": 1,
+            "is_processing": True,
+        }
+
 
 def test_model_catalog_separates_remote_and_local_models(tmp_path: Path) -> None:
     comfy_root = tmp_path / "ComfyUI"
@@ -113,3 +121,26 @@ def test_download_to_remote_passes_model_metadata_directly(tmp_path: Path) -> No
             "url": "https://example.com/downloadable.safetensors",
         }
     ]
+
+
+def test_manager_queue_status_endpoint(tmp_path: Path) -> None:
+    client = TestClient(
+        create_app(data_dir=tmp_path / "data", comfy_factory=lambda _: FakeModelComfyClient())
+    )
+    client.put(
+        "/api/config",
+        json={
+            "mode": "remote",
+            "api_url": "http://comfy",
+        },
+    )
+
+    response = client.get("/api/models/manager/status")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_count": 1,
+        "done_count": 0,
+        "in_progress_count": 1,
+        "is_processing": True,
+    }

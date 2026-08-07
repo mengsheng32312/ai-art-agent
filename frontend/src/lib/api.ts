@@ -70,6 +70,13 @@ export type ModelCatalogResponse = {
   online_models: ModelItem[]
 }
 
+export type ManagerQueueStatus = {
+  total_count: number
+  done_count: number
+  in_progress_count: number
+  is_processing: boolean
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
@@ -104,6 +111,7 @@ export const api = {
   deleteHistory: (id: string) =>
     request<{ ok: boolean }>(`/history/${id}`, { method: "DELETE" }),
   models: () => request<ModelCatalogResponse>("/models/catalog"),
+  managerStatus: () => request<ManagerQueueStatus>("/models/manager/status"),
   downloadModel: (model_id: string, destination: "remote" | "local" = "local") =>
     request<ModelItem>("/models/download", {
       method: "POST",

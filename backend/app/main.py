@@ -19,6 +19,7 @@ from .schemas import (
     ConnectionStatus,
     GenerationRequest,
     GenerationTask,
+    ManagerQueueStatus,
     ModelCatalogResponse,
     ModelDownloadRequest,
     ModelItem,
@@ -307,6 +308,15 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"模型下载失败：{exc}") from exc
+
+    @app.get("/api/models/manager/status", response_model=ManagerQueueStatus)
+    async def get_manager_queue_status() -> ManagerQueueStatus:
+        try:
+            return await comfy().manager_queue_status()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail=f"获取远程下载状态失败：{exc}"
+            ) from exc
 
     return app
 

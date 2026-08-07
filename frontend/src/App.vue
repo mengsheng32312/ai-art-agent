@@ -53,7 +53,7 @@ const currentTask = ref<GenerationTask | null>(null)
 const busy = ref(false)
 const testingConnection = ref(false)
 const loadingModels = ref(false)
-const downloadingModelId = ref("")
+const downloadingModelKey = ref("")
 const catalogLoaded = ref(false)
 const notice = ref("")
 const noticeType = ref<"info" | "success" | "error">("info")
@@ -206,19 +206,52 @@ async function downloadModel(id: string, destination: "remote" | "local" = "loca
     return
   }
 
-  downloadingModelId.value = id
+  downloadingModelKey.value = `${id}|${destination}`
   try {
     const model = await api.downloadModel(id, destination)
-    message.success(
-      destination === "remote"
-        ? `已在远程设备添加下载任务：${model.name}`
-        : `已添加下载任务：${model.name}`,
-    )
-    await refreshModels()
+    if (destination === "remote") {
+      message.success(`已在远程设备添加下载任务：${model.name}`)
+      await waitForRemoteDownload(model)
+    } else {
+      message.success(`已添加下载任务：${model.name}`)
+      await refreshModels()
+    }
   } catch (error) {
     message.error(error instanceof Error ? error.message : "模型下载失败")
   } finally {
-    downloadingModelId.value = ""
+    downloadingModelKey.value = ""
+  }
+}
+
+// 远程下载由 ComfyUI Manager 队列执行，轮询队列状态与远程模型列表确认完成。
+async function waitForRemoteDownload(model: ModelItem) {
+  let failures = 0
+  for (;;) {
+    await new Promise(resolve => setTimeout(resolve, 5000))
+    try {
+      const status = await api.managerStatus()
+      failures = 0
+      if (!status.is_processing) {
+        await refreshModels()
+        const installed = modelCatalog.value.remote_models.some(
+          item => item.filename === model.filename,
+        )
+        if (installed) {
+          message.success(`模型下载完成：${model.name}`)
+        } else {
+          message.warning(
+            `下载任务已结束但未检测到模型文件，请查看远程 ComfyUI Manager 日志`,
+          )
+        }
+        return
+      }
+    } catch {
+      failures += 1
+      if (failures >= 6) {
+        message.info("暂时无法查询远程下载状态，稍后刷新模型列表确认结果")
+        return
+      }
+    }
   }
 }
 
@@ -502,7 +535,7 @@ onMounted(async () => {
             :catalog="modelCatalog"
             :catalog-loaded="catalogLoaded"
             :loading="loadingModels"
-            :downloading-id="downloadingModelId"
+            :downloading-key="downloadingModelKey"
             @refresh="refreshModels"
             @select="selectModel"
             @download="downloadModel"
