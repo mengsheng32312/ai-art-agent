@@ -974,6 +974,19 @@ body {
   background: var(--surface) !important;
 }
 
+.model-loading-card {
+  min-height: 180px;
+}
+
+.model-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 140px;
+  color: var(--text-secondary);
+}
+
 .model-pagination {
   margin-top: 12px;
   text-align: right;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
-import { Alert, Button, Card, Col, Empty, Pagination, Row, Segmented, Space, Tag, Tooltip } from "ant-design-vue"
+import { Alert, Button, Card, Col, Empty, Pagination, Row, Segmented, Space, Spin, Tag, Tooltip } from "ant-design-vue"
 import { CloudDownloadOutlined, ReloadOutlined } from "@ant-design/icons-vue"
 import { proxiedImageUrl, type Config, type ModelCatalogResponse, type ModelItem } from "../lib/api"
 
@@ -134,7 +134,14 @@ function sourceText(source: ModelItem["source"]) {
     :description="catalog.message || '请点击「刷新模型」重试。'"
   />
 
-  <template v-else-if="catalogLoaded">
+  <Card v-else-if="!catalogLoaded" :bordered="false" class="model-section model-loading-card">
+    <div class="model-loading">
+      <Spin />
+      <span>正在加载模型目录，请稍候...</span>
+    </div>
+  </Card>
+
+  <template v-else>
     <Alert
       v-if="config.mode !== 'local' || !config.comfyui_path"
       class="model-section"
