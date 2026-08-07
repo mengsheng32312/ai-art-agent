@@ -1155,6 +1155,34 @@ body {
   white-space: nowrap;
 }
 
+.reference-media-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.reference-media-preview {
+  flex: 0 0 auto;
+  width: 260px;
+  height: 160px;
+  object-fit: contain;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.reference-media-meta {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  justify-items: start;
+}
+
 .ant-form-item {
   margin-bottom: 10px;
 }

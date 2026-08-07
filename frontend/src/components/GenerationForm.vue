@@ -270,6 +270,7 @@ function selectReferenceVideo(file: File) {
       uid: "reference_video",
       name: file.name,
       status: "done",
+      url: URL.createObjectURL(file),
     },
   ]
   return false
@@ -363,19 +364,30 @@ function clearReferenceVideo() {
               : '上传一张图作为视频首帧，模型将推断后续运动（Wan I2V）。'"
           />
         </template>
-        <Upload
-          list-type="picture"
-          accept="image/*"
-          :max-count="1"
-          :file-list="referenceImageFiles"
-          :before-upload="selectReferenceImage"
-          @remove="clearReferenceImage"
-        >
-          <Button>
-            <template #icon><UploadOutlined /></template>
-            选择参考图
-          </Button>
-        </Upload>
+        <Space direction="vertical" size="small" style="width: 100%">
+          <Upload
+            accept="image/*"
+            :show-upload-list="false"
+            :before-upload="selectReferenceImage"
+          >
+            <Button>
+              <template #icon><UploadOutlined /></template>
+              {{ referenceImageFiles.length ? "更换参考图" : "选择参考图" }}
+            </Button>
+          </Upload>
+          <div v-if="referenceImageFiles[0]" class="reference-media-card">
+            <img
+              :src="referenceImageFiles[0].url"
+              :alt="referenceImageFiles[0].name"
+              class="reference-media-preview"
+            />
+            <div class="reference-media-meta">
+              <strong>{{ referenceImageFiles[0].name }}</strong>
+              <span class="field-help">预览已加载，生成时上传到 ComfyUI</span>
+              <Button size="small" @click="clearReferenceImage">移除</Button>
+            </div>
+          </div>
+        </Space>
       </Form.Item>
 
       <div v-if="mode === 'video' && form.video_mode === 'v2v'" class="step-title">
@@ -390,18 +402,31 @@ function clearReferenceVideo() {
             help="上传参考视频，取其首尾帧约束输出视频的运动；建议帧数不少于生成帧数（Wan V2V）。"
           />
         </template>
-        <Upload
-          accept="video/*"
-          :max-count="1"
-          :file-list="referenceVideoFiles"
-          :before-upload="selectReferenceVideo"
-          @remove="clearReferenceVideo"
-        >
-          <Button>
-            <template #icon><UploadOutlined /></template>
-            选择参考视频
-          </Button>
-        </Upload>
+        <Space direction="vertical" size="small" style="width: 100%">
+          <Upload
+            accept="video/*"
+            :show-upload-list="false"
+            :before-upload="selectReferenceVideo"
+          >
+            <Button>
+              <template #icon><UploadOutlined /></template>
+              {{ referenceVideoFiles.length ? "更换参考视频" : "选择参考视频" }}
+            </Button>
+          </Upload>
+          <div v-if="referenceVideoFiles[0]" class="reference-media-card">
+            <video
+              :src="referenceVideoFiles[0].url"
+              class="reference-media-preview"
+              controls
+              muted
+            />
+            <div class="reference-media-meta">
+              <strong>{{ referenceVideoFiles[0].name }}</strong>
+              <span class="field-help">预览已加载，生成时上传到 ComfyUI</span>
+              <Button size="small" @click="clearReferenceVideo">移除</Button>
+            </div>
+          </div>
+        </Space>
       </Form.Item>
 
       <div class="step-title">
@@ -508,18 +533,27 @@ function clearReferenceVideo() {
         </template>
         <Space direction="vertical" size="small" style="width: 100%">
           <Upload
-            list-type="picture"
             accept="image/*"
-            :max-count="1"
-            :file-list="controlnetFiles"
+            :show-upload-list="false"
             :before-upload="selectControlnetImage"
-            @remove="clearControlnet"
           >
             <Button>
               <template #icon><UploadOutlined /></template>
-              选择条件图
+              {{ controlnetFiles.length ? "更换条件图" : "选择条件图" }}
             </Button>
           </Upload>
+          <div v-if="controlnetFiles[0]" class="reference-media-card">
+            <img
+              :src="controlnetFiles[0].url"
+              :alt="controlnetFiles[0].name"
+              class="reference-media-preview"
+            />
+            <div class="reference-media-meta">
+              <strong>{{ controlnetFiles[0].name }}</strong>
+              <span class="field-help">预览已加载，生成时上传到 ComfyUI</span>
+              <Button size="small" @click="clearControlnet">移除</Button>
+            </div>
+          </div>
           <Space v-if="form.controlnet" wrap>
             <Select v-model:value="form.controlnet.model" placeholder="选择 ControlNet 模型" style="min-width: 200px">
               <Select.Option v-for="item in controlnetModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
@@ -619,15 +653,12 @@ function clearReferenceVideo() {
             启用高清放大
           </Checkbox>
           <template v-if="form.hires">
-            <Tooltip title="放大倍率">
-              <InputNumber v-model:value="form.hires.scale" :min="1" :max="4" :step="0.25" />
-            </Tooltip>
-            <Tooltip title="精修步数">
-              <InputNumber v-model:value="form.hires.steps" :min="1" :max="60" />
-            </Tooltip>
-            <Tooltip title="精修 denoise">
-              <InputNumber v-model:value="form.hires.denoise" :min="0" :max="1" :step="0.05" />
-            </Tooltip>
+            <span class="lora-label">倍率</span>
+            <InputNumber v-model:value="form.hires.scale" :min="1" :max="4" :step="0.25" />
+            <span class="lora-label">步数</span>
+            <InputNumber v-model:value="form.hires.steps" :min="1" :max="60" />
+            <span class="lora-label">Denoise</span>
+            <InputNumber v-model:value="form.hires.denoise" :min="0" :max="1" :step="0.05" />
           </template>
         </Space>
       </Form.Item>
