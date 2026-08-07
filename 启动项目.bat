@@ -4,8 +4,6 @@ setlocal
 cd /d "%~dp0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\tauri.ps1" dev
 
-if errorlevel 1 (
-  echo.
-  echo 启动失败，请把上面的错误信息发给 Codex。
-  pause
-)
+echo.
+echo 项目启动进程已退出。如有错误，请把上面的信息发给 Codex。
+pause
