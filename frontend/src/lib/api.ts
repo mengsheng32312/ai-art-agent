@@ -19,6 +19,7 @@ export type GenerationRequest = {
   vae: string
   reference_image: string
   loras: LoRAConfig[]
+  controlnet: ControlNetConfig | null
   frames: number
   motion_model: string
   beta_schedule: string
@@ -42,6 +43,15 @@ export type LoRAConfig = {
   name: string
   model_strength: number
   clip_strength: number
+}
+
+export type ControlNetConfig = {
+  model: string
+  preprocessor: "canny" | "depth" | "lineart" | "openpose" | "none"
+  image: string
+  strength: number
+  start_percent: number
+  end_percent: number
 }
 
 export type GenerationTask = {
@@ -120,6 +130,7 @@ export const api = {
     request<ConnectionStatus>("/comfy/status", { method: "POST", body: JSON.stringify(config) }),
   checkpoints: () => request<string[]>("/comfy/checkpoints"),
   loraModels: () => request<string[]>("/comfy/lora-models"),
+  controlnetModels: () => request<string[]>("/comfy/controlnet-models"),
   videoModels: () => request<string[]>("/comfy/video-models"),
   vaeModels: () => request<string[]>("/comfy/vae-models"),
   generate: (data: GenerationRequest) =>

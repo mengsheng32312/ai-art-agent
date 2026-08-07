@@ -41,6 +41,7 @@ const settingsError = ref("")
 const checkpoints = ref<string[]>([])
 const motionModels = ref<string[]>([])
 const loraModels = ref<string[]>([])
+const controlnetModels = ref<string[]>([])
 const vaeModels = ref<string[]>([])
 const modelCatalog = ref<ModelCatalogResponse>({
   connected: false,
@@ -322,6 +323,7 @@ async function refreshConnection() {
         void loadVideoModels()
         void loadVaeModels()
         void loadLoraModels()
+        void loadControlnetModels()
       }
       return
     }
@@ -340,6 +342,7 @@ async function refreshConnection() {
         void loadVideoModels()
         void loadVaeModels()
         void loadLoraModels()
+        void loadControlnetModels()
       } else {
         message.error(`测试连接失败：${state.message}`)
       }
@@ -399,6 +402,14 @@ async function loadLoraModels() {
     loraModels.value = await api.loraModels()
   } catch {
     loraModels.value = []
+  }
+}
+
+async function loadControlnetModels() {
+  try {
+    controlnetModels.value = await api.controlnetModels()
+  } catch {
+    controlnetModels.value = []
   }
 }
 
@@ -563,6 +574,7 @@ onMounted(async () => {
             :form="form"
             :checkpoints="imageCheckpoints"
             :lora-models="loraModels"
+            :controlnet-models="controlnetModels"
             :vae-models="vaeModels"
             :current-task="currentTask"
             :can-generate="canGenerate"

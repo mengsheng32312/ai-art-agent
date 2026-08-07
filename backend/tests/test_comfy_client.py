@@ -149,3 +149,26 @@ async def test_list_loras_returns_names() -> None:
         names = await client.list_loras()
 
     assert names == ["a.safetensors", "b.safetensors"]
+
+
+@pytest.mark.asyncio
+async def test_list_controlnets_returns_names() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/object_info/ControlNetLoader":
+            return httpx.Response(
+                200,
+                json={
+                    "ControlNetLoader": {
+                        "input": {
+                            "required": {"control_net_name": [["cn.safetensors"]]}
+                        }
+                    }
+                },
+            )
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = ComfyClient("http://comfy", http=http)
+        names = await client.list_controlnets()
+
+    assert names == ["cn.safetensors"]

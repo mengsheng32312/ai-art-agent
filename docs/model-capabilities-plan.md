@@ -71,9 +71,9 @@ LoRA（`LoraLoader`）插在 CheckpointLoader 之后，KSampler 的 model/clip �
 
 ### Phase 4：ControlNet
 
-- [ ] 后端：`GenerationRequest.controlnet`、workflow 插入预处理器 + `ControlNetApplyAdvanced`
-- [ ] 前端：ControlNet 开关、模型、预处理类型（Canny/Depth/Lineart/OpenPose）、强度与生效区间
-- [ ] 验收：上传条件图并生成，条件约束生效
+- [x] 后端：`GenerationRequest.controlnet`、workflow 插入预处理器 + `ControlNetApplyAdvanced`
+- [x] 前端：ControlNet 开关、模型、预处理类型（Canny/Depth/Lineart/OpenPose/直传）、强度与生效区间
+- [x] 验收：上传条件图并生成，条件约束生效（全量 50 个后端测试通过）
 
 ### Phase 5：Hires fix
 

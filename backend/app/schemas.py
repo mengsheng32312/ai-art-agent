@@ -9,6 +9,15 @@ class LoRAConfig(BaseModel):
     clip_strength: float = Field(default=1.0, ge=0, le=4)
 
 
+class ControlNetConfig(BaseModel):
+    model: str = Field(min_length=1)
+    preprocessor: Literal["canny", "depth", "lineart", "openpose", "none"] = "canny"
+    image: str = Field(min_length=1)
+    strength: float = Field(default=1.0, ge=0, le=4)
+    start_percent: float = Field(default=0.0, ge=0, le=1)
+    end_percent: float = Field(default=1.0, ge=0, le=1)
+
+
 class GenerationRequest(BaseModel):
     prompt: str = Field(min_length=1)
     negative_prompt: str = ""
@@ -25,6 +34,7 @@ class GenerationRequest(BaseModel):
     method: str = "default"
     output_prefix: str = "AIArtAgent"
     loras: list[LoRAConfig] = []
+    controlnet: ControlNetConfig | None = None
     width: int = Field(default=1024, ge=64, le=4096, multiple_of=8)
     height: int = Field(default=1024, ge=64, le=4096, multiple_of=8)
     steps: int = Field(default=25, ge=1, le=150)

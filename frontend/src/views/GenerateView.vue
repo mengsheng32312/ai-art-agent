@@ -8,6 +8,7 @@ defineProps<{
   form: GenerationRequest
   checkpoints: string[]
   loraModels: string[]
+  controlnetModels: string[]
   vaeModels: string[]
   currentTask: GenerationTask | null
   canGenerate: boolean
@@ -29,6 +30,7 @@ const emit = defineEmits<{ generate: []; goModels: [] }>()
           :form="form"
           :checkpoints="checkpoints"
           :lora-models="loraModels"
+          :controlnet-models="controlnetModels"
           :vae-models="vaeModels"
           :can-generate="canGenerate"
           :blocked-reason="blockedReason"

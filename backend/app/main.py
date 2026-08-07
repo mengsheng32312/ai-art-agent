@@ -146,6 +146,13 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    @app.get("/api/comfy/controlnet-models", response_model=list[str])
+    async def controlnet_models() -> list[str]:
+        try:
+            return await comfy().list_controlnets()
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     @app.get("/api/comfy/video-models", response_model=list[str])
     async def video_models() -> list[str]:
         try:

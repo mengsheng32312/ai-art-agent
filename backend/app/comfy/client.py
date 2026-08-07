@@ -61,6 +61,11 @@ class ComfyClient:
         data = response.json()
         return data["LoraLoader"]["input"]["required"]["lora_name"][0]
 
+    async def list_controlnets(self) -> list[str]:
+        response = await self._request("GET", "/object_info/ControlNetLoader")
+        data = response.json()
+        return data["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
+
     async def object_info(self, node_name: str) -> dict[str, Any]:
         response = await self._request("GET", f"/object_info/{node_name}")
         return response.json()

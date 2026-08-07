@@ -11,6 +11,7 @@ const props = defineProps<{
   checkpoints: string[]
   motionModels?: string[]
   loraModels?: string[]
+  controlnetModels?: string[]
   vaeModels?: string[]
   canGenerate: boolean
   blockedReason: string
@@ -25,6 +26,8 @@ const emit = defineEmits<{ generate: []; goModels: [] }>()
 const fileInput = ref<HTMLInputElement | null>(null)
 const referenceImageUploading = ref(false)
 const referenceImagePreview = ref("")
+const controlnetUploading = ref(false)
+const controlnetPreview = ref("")
 
 const samplerOptions = [
   "euler",
@@ -154,6 +157,45 @@ function addLora() {
 
 function removeLora(index: number) {
   props.form.loras.splice(index, 1)
+}
+
+const preprocessorOptions = [
+  { label: "Canny 边缘", value: "canny" },
+  { label: "深度图", value: "depth" },
+  { label: "线稿", value: "lineart" },
+  { label: "姿态 OpenPose", value: "openpose" },
+  { label: "原始图直传", value: "none" },
+]
+
+async function onControlnetImageUpload(file: File) {
+  controlnetUploading.value = true
+  try {
+    const result = await api.uploadFile(file, "image")
+    if (!props.form.controlnet) {
+      props.form.controlnet = {
+        model: "",
+        preprocessor: "canny",
+        image: result.name,
+        strength: 1,
+        start_percent: 0,
+        end_percent: 1,
+      }
+    } else {
+      props.form.controlnet.image = result.name
+    }
+    controlnetPreview.value = URL.createObjectURL(file)
+    message.success("ControlNet 条件图已上传")
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "条件图上传失败")
+  } finally {
+    controlnetUploading.value = false
+  }
+  return false
+}
+
+function clearControlnet() {
+  props.form.controlnet = null
+  controlnetPreview.value = ""
 }
 </script>
 
@@ -338,6 +380,54 @@ function removeLora(index: number) {
             <template #icon><PlusOutlined /></template>
             添加 LoRA
           </Button>
+        </Space>
+      </Form.Item>
+
+      <div v-if="mode === 'image'" class="step-title">
+        <span class="step-badge">cn</span>
+        <span class="step-name">ControlNet 控制</span>
+        <span class="step-node">ControlNetApplyAdvanced</span>
+      </div>
+      <Form.Item v-if="mode === 'image'" class="step-field">
+        <template #label>
+          <FieldLabel
+            label="ControlNet"
+            help="上传条件图并选择控制模型：Canny 线稿约束构图、深度图约束空间关系、姿态约束人物动作。strength 越高约束越强，start/end 控制生效的采样区间。"
+          />
+        </template>
+        <Space v-if="!form.controlnet" direction="vertical" size="small">
+          <Upload
+            :show-upload-list="false"
+            accept="image/*"
+            :before-upload="onControlnetImageUpload"
+          >
+            <Button :loading="controlnetUploading">
+              <template #icon><UploadOutlined /></template>
+              上传条件图
+            </Button>
+          </Upload>
+        </Space>
+        <Space v-else wrap>
+          <img
+            v-if="controlnetPreview"
+            :src="controlnetPreview"
+            class="reference-image-preview"
+            alt="条件图"
+          />
+          <Select v-model:value="form.controlnet.model" placeholder="选择 ControlNet 模型" style="min-width: 200px">
+            <Select.Option v-for="item in controlnetModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
+          </Select>
+          <Select v-model:value="form.controlnet.preprocessor" :options="preprocessorOptions" style="min-width: 130px" />
+          <Tooltip title="约束强度">
+            <InputNumber v-model:value="form.controlnet.strength" :min="0" :max="4" :step="0.05" />
+          </Tooltip>
+          <Tooltip title="开始区间">
+            <InputNumber v-model:value="form.controlnet.start_percent" :min="0" :max="1" :step="0.05" />
+          </Tooltip>
+          <Tooltip title="结束区间">
+            <InputNumber v-model:value="form.controlnet.end_percent" :min="0" :max="1" :step="0.05" />
+          </Tooltip>
+          <Button size="small" @click="clearControlnet">移除</Button>
         </Space>
       </Form.Item>
 

@@ -145,3 +145,67 @@ def test_workflow_without_loras_keeps_direct_connections() -> None:
     assert "11" not in workflow
     assert workflow["5"]["inputs"]["model"] == ["1", 0]
     assert workflow["2"]["inputs"]["clip"] == ["1", 1]
+
+
+def test_image_workflow_applies_controlnet_with_canny_preprocessor() -> None:
+    request = GenerationRequest(
+        prompt="a red fox",
+        checkpoint="model.safetensors",
+        controlnet={
+            "model": "control_v11p_sd15_canny.safetensors",
+            "preprocessor": "canny",
+            "image": "edge.png",
+            "strength": 0.9,
+            "start_percent": 0.1,
+            "end_percent": 0.8,
+        },
+    )
+
+    workflow = build_text_to_image_workflow(request)
+
+    assert workflow["20"]["class_type"] == "ControlNetLoader"
+    assert workflow["20"]["inputs"]["control_net_name"] == (
+        "control_v11p_sd15_canny.safetensors"
+    )
+    assert workflow["21"]["class_type"] == "Canny"
+    assert workflow["21"]["inputs"]["image"] == "edge.png"
+    assert workflow["22"]["class_type"] == "ControlNetApplyAdvanced"
+    assert workflow["22"]["inputs"] == {
+        "conditioning": ["2", 0],
+        "negative": ["3", 0],
+        "control_net": ["20", 0],
+        "image": ["21", 0],
+        "strength": 0.9,
+        "start_percent": 0.1,
+        "end_percent": 0.8,
+    }
+    assert workflow["5"]["inputs"]["positive"] == ["22", 0]
+    assert workflow["5"]["inputs"]["negative"] == ["22", 1]
+
+
+def test_image_workflow_controlnet_none_preprocessor_uses_raw_image() -> None:
+    request = GenerationRequest(
+        prompt="a red fox",
+        checkpoint="model.safetensors",
+        controlnet={
+            "model": "control_v11p_sd15_scribble.safetensors",
+            "preprocessor": "none",
+            "image": "sketch.png",
+        },
+    )
+
+    workflow = build_text_to_image_workflow(request)
+
+    assert workflow["21"]["class_type"] == "LoadImage"
+    assert workflow["21"]["inputs"]["image"] == "sketch.png"
+    assert workflow["22"]["inputs"]["image"] == ["21", 0]
+
+
+def test_workflow_without_controlnet_keeps_direct_conditioning() -> None:
+    request = GenerationRequest(prompt="a red fox", checkpoint="model.safetensors")
+
+    workflow = build_text_to_image_workflow(request)
+
+    assert "20" not in workflow
+    assert workflow["5"]["inputs"]["positive"] == ["2", 0]
+    assert workflow["5"]["inputs"]["negative"] == ["3", 0]

@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import secrets
 import sys
+from typing import Any
 
 from ..schemas import GenerationRequest, LoRAConfig
 
@@ -51,6 +52,71 @@ def _apply_loras(
     return model_ref, clip_ref
 
 
+def _apply_controlnet(
+    workflow: dict,
+    controlnet: Any,
+    node_start: int = 20,
+) -> tuple[list, list] | None:
+    """插入 ControlNet 条件链，返回 (positive, negative) 引用；未配置时返回 None。"""
+    if controlnet is None:
+        return None
+    loader_id = str(node_start)
+    workflow[loader_id] = {
+        "class_type": "ControlNetLoader",
+        "inputs": {"control_net_name": controlnet.model},
+    }
+    processor_id = str(node_start + 1)
+    processor = controlnet.preprocessor
+    if processor == "canny":
+        workflow[processor_id] = {
+            "class_type": "Canny",
+            "inputs": {
+                "image": controlnet.image,
+                "low_threshold": 100,
+                "high_threshold": 200,
+            },
+        }
+    elif processor == "depth":
+        workflow[processor_id] = {
+            "class_type": "DepthAnythingPreprocessor",
+            "inputs": {"image": controlnet.image, "type": "Depth Anything V2 Small"},
+        }
+    elif processor == "lineart":
+        workflow[processor_id] = {
+            "class_type": "LineartPreprocessor",
+            "inputs": {"image": controlnet.image},
+        }
+    elif processor == "openpose":
+        workflow[processor_id] = {
+            "class_type": "OpenposePreprocessor",
+            "inputs": {
+                "image": controlnet.image,
+                "detect_hand": "enable",
+                "detect_body": "enable",
+                "detect_face": "enable",
+            },
+        }
+    else:
+        workflow[processor_id] = {
+            "class_type": "LoadImage",
+            "inputs": {"image": controlnet.image},
+        }
+    apply_id = str(node_start + 2)
+    workflow[apply_id] = {
+        "class_type": "ControlNetApplyAdvanced",
+        "inputs": {
+            "conditioning": ["2", 0],
+            "negative": ["3", 0],
+            "control_net": [loader_id, 0],
+            "image": [processor_id, 0],
+            "strength": controlnet.strength,
+            "start_percent": controlnet.start_percent,
+            "end_percent": controlnet.end_percent,
+        },
+    }
+    return [apply_id, 0], [apply_id, 1]
+
+
 def build_text_to_image_workflow(
     request: GenerationRequest, output_prefix: str = "AIArtAgent"
 ) -> dict:
@@ -77,6 +143,10 @@ def build_text_to_image_workflow(
         scheduler=request.scheduler,
     )
     workflow["5"]["inputs"]["model"] = model_ref
+    control_refs = _apply_controlnet(workflow, request.controlnet)
+    if control_refs:
+        workflow["5"]["inputs"]["positive"] = control_refs[0]
+        workflow["5"]["inputs"]["negative"] = control_refs[1]
     workflow["7"]["inputs"]["filename_prefix"] = output_prefix or request.output_prefix
     if request.reference_image:
         workflow["9"] = {

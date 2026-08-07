@@ -9,6 +9,7 @@ export function createDefaultGenerationRequest(): GenerationRequest {
     vae: "",
     reference_image: "",
     loras: [],
+    controlnet: null,
     frames: 16,
     motion_model: "",
     beta_schedule: "sqrt_linear (AnimateDiff)",
