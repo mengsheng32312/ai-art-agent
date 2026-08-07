@@ -8,17 +8,39 @@ class ComfyUnavailableError(RuntimeError):
     """远程 ComfyUI 不可达（例如隧道断开或源站已停止）。"""
 
 
+def _unavailable_error(exc: Exception) -> ComfyUnavailableError:
+    if isinstance(exc, httpx.ConnectTimeout):
+        return ComfyUnavailableError(
+            "连接远程 ComfyUI 超时：网络较慢或隧道响应异常，请稍后重试"
+        )
+    if isinstance(exc, httpx.ConnectError):
+        return ComfyUnavailableError(
+            "无法连接远程 ComfyUI：连接建立失败，可能是隧道未启动、"
+            "地址已过期或网络不可达，请检查 API 地址后重试"
+        )
+    return ComfyUnavailableError(str(exc))
+
+
 class ComfyClient:
     def __init__(self, base_url: str, http: httpx.AsyncClient | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.http = http
 
     async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
-        if self.http:
-            response = await self.http.request(method, f"{self.base_url}{path}", **kwargs)
-        else:
-            async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
-                response = await client.request(method, f"{self.base_url}{path}", **kwargs)
+        try:
+            if self.http:
+                response = await self.http.request(
+                    method, f"{self.base_url}{path}", **kwargs
+                )
+            else:
+                async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
+                    response = await client.request(
+                        method, f"{self.base_url}{path}", **kwargs
+                    )
+        except httpx.TimeoutException as exc:
+            raise _unavailable_error(exc) from exc
+        except httpx.ConnectError as exc:
+            raise _unavailable_error(exc) from exc
         if response.status_code == 530:
             raise ComfyUnavailableError(
                 "远程 ComfyUI 暂时不可用：连接隧道已断开，请重新运行 Colab 并更新 API 地址"

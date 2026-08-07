@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, Response
 import uvicorn
 
 from .comfy.client import ComfyClient
+from .comfy.resolver import install_fallback_resolver
 from .comfy.workflow import build_text_to_image_workflow, build_text_to_video_workflow
 from .history import HistoryStore
 from .models import build_model_catalog, request_manager_download
@@ -23,6 +24,9 @@ from .schemas import (
     ModelItem,
 )
 from .settings import AppConfig, ConfigStore, default_data_dir
+
+
+install_fallback_resolver()
 
 
 def create_app(
