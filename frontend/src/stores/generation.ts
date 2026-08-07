@@ -8,6 +8,7 @@ export function createDefaultGenerationRequest(): GenerationRequest {
     media_type: "image",
     vae: "",
     reference_image: "",
+    loras: [],
     frames: 16,
     motion_model: "",
     beta_schedule: "sqrt_linear (AnimateDiff)",

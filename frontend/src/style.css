@@ -1150,6 +1150,14 @@ body {
   border-radius: var(--radius-md);
 }
 
+.lora-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
 .ant-form-item {
   margin-bottom: 10px;
 }

@@ -139,6 +139,13 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    @app.get("/api/comfy/lora-models", response_model=list[str])
+    async def lora_models() -> list[str]:
+        try:
+            return await comfy().list_loras()
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     @app.get("/api/comfy/video-models", response_model=list[str])
     async def video_models() -> list[str]:
         try:

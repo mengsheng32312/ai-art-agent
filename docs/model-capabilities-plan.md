@@ -63,9 +63,11 @@ LoRA（`LoraLoader`）插在 CheckpointLoader 之后，KSampler 的 model/clip �
 
 ### Phase 3：LoRA
 
-- [ ] 后端：`GenerationRequest.loras`、workflow 插入 `LoraLoader` 链
-- [ ] 前端：LoRA 选择（最多 3 个）+ model/clip 强度
-- [ ] 验收：图片与视频生成均可叠加 LoRA
+- [x] 后端：`GenerationRequest.loras`、workflow 插入 `LoraLoader` 链
+- [x] 前端：LoRA 选择（最多 3 个）+ model/clip 强度
+- [x] 验收：图片与视频生成均可叠加 LoRA（全量 46 个后端测试通过）
+
+另：顺手修复了 `build_*_workflow` 的 `filename_prefix` 优先级问题（显式参数被默认值遮蔽），对应测试一并变绿。
 
 ### Phase 4：ControlNet
 

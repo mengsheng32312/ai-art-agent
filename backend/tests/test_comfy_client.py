@@ -128,3 +128,24 @@ async def test_upload_media_uses_video_endpoint() -> None:
         name = await client.upload_media("video", b"mp4-data", "clip.mp4")
 
     assert name == "clip.mp4"
+
+
+@pytest.mark.asyncio
+async def test_list_loras_returns_names() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/object_info/LoraLoader":
+            return httpx.Response(
+                200,
+                json={
+                    "LoraLoader": {
+                        "input": {"required": {"lora_name": [["a.safetensors", "b.safetensors"]]}}
+                    }
+                },
+            )
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = ComfyClient("http://comfy", http=http)
+        names = await client.list_loras()
+
+    assert names == ["a.safetensors", "b.safetensors"]

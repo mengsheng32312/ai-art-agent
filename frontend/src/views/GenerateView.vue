@@ -7,6 +7,7 @@ import GenerationPreview from "../components/GenerationPreview.vue"
 defineProps<{
   form: GenerationRequest
   checkpoints: string[]
+  loraModels: string[]
   vaeModels: string[]
   currentTask: GenerationTask | null
   canGenerate: boolean
@@ -27,6 +28,7 @@ const emit = defineEmits<{ generate: []; goModels: [] }>()
         <GenerationForm
           :form="form"
           :checkpoints="checkpoints"
+          :lora-models="loraModels"
           :vae-models="vaeModels"
           :can-generate="canGenerate"
           :blocked-reason="blockedReason"

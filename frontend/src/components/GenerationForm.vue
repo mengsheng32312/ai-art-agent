@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue"
 import { Alert, Button, Card, Form, Input, InputNumber, message, Select, Space, Tooltip, Upload } from "ant-design-vue"
-import { ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
+import { PlusOutlined, ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
 import { api, type GenerationRequest } from "../lib/api"
 import { parseWorkflowFile } from "../lib/workflow"
 import FieldLabel from "./FieldLabel.vue"
@@ -10,6 +10,7 @@ const props = defineProps<{
   form: GenerationRequest
   checkpoints: string[]
   motionModels?: string[]
+  loraModels?: string[]
   vaeModels?: string[]
   canGenerate: boolean
   blockedReason: string
@@ -143,6 +144,16 @@ async function onReferenceImageUpload(file: File) {
 function clearReferenceImage() {
   props.form.reference_image = ""
   referenceImagePreview.value = ""
+}
+
+function addLora() {
+  if (!props.form.loras) props.form.loras = []
+  if (props.form.loras.length >= 3) return
+  props.form.loras.push({ name: "", model_strength: 1, clip_strength: 1 })
+}
+
+function removeLora(index: number) {
+  props.form.loras.splice(index, 1)
 }
 </script>
 
@@ -292,6 +303,43 @@ function clearReferenceImage() {
           <InputNumber v-model:value="form.batch_size" :min="1" :max="8" />
         </Form.Item>
       </Space>
+
+      <div class="step-title">
+        <span class="step-badge">lora</span>
+        <span class="step-name">LoRA 叠加</span>
+        <span class="step-node">LoraLoader</span>
+      </div>
+      <Form.Item class="step-field">
+        <template #label>
+          <FieldLabel
+            label="LoRA 模型"
+            help="最多叠加 3 个 LoRA，按顺序串联在 checkpoint 之后；model 强度影响画面结构，clip 强度影响语义跟随。"
+          />
+        </template>
+        <Space direction="vertical" size="small" style="width: 100%">
+          <div v-for="(lora, index) in form.loras ?? []" :key="index" class="lora-row">
+            <Select
+              v-model:value="lora.name"
+              placeholder="选择 LoRA"
+              :not-found-content="'暂无可用 LoRA'"
+              style="min-width: 180px"
+            >
+              <Select.Option v-for="item in loraModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
+            </Select>
+            <Tooltip title="model 强度">
+              <InputNumber v-model:value="lora.model_strength" :min="0" :max="4" :step="0.05" />
+            </Tooltip>
+            <Tooltip title="clip 强度">
+              <InputNumber v-model:value="lora.clip_strength" :min="0" :max="4" :step="0.05" />
+            </Tooltip>
+            <Button size="small" @click="removeLora(index)">移除</Button>
+          </div>
+          <Button v-if="(form.loras ?? []).length < 3" size="small" @click="addLora">
+            <template #icon><PlusOutlined /></template>
+            添加 LoRA
+          </Button>
+        </Space>
+      </Form.Item>
 
       <div class="step-title">
         <span class="step-badge">4</span>

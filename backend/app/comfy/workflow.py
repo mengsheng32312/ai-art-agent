@@ -4,7 +4,7 @@ import json
 import secrets
 import sys
 
-from ..schemas import GenerationRequest
+from ..schemas import GenerationRequest, LoRAConfig
 
 
 TEMPLATE_PATH = Path(__file__).parents[3] / "workflows" / "text-to-image.json"
@@ -25,14 +25,43 @@ def video_template_path() -> Path:
     return VIDEO_TEMPLATE_PATH
 
 
+def _apply_loras(
+    workflow: dict, loras: list[LoRAConfig], node_start: int = 11
+) -> tuple[list, list]:
+    """把 LoRA 链接到 checkpoint 之后，返回 (model 引用, clip 引用)。"""
+    if not loras:
+        return ["1", 0], ["1", 1]
+    model_ref: list = ["1", 0]
+    clip_ref: list = ["1", 1]
+    next_id = node_start
+    for lora in loras:
+        workflow[str(next_id)] = {
+            "class_type": "LoraLoader",
+            "inputs": {
+                "model": model_ref,
+                "clip": clip_ref,
+                "lora_name": lora.name,
+                "strength_model": lora.model_strength,
+                "strength_clip": lora.clip_strength,
+            },
+        }
+        model_ref = [str(next_id), 0]
+        clip_ref = [str(next_id), 1]
+        next_id += 1
+    return model_ref, clip_ref
+
+
 def build_text_to_image_workflow(
     request: GenerationRequest, output_prefix: str = "AIArtAgent"
 ) -> dict:
     workflow = json.loads(template_path().read_text(encoding="utf-8"))
     workflow = deepcopy(workflow)
     workflow["1"]["inputs"]["ckpt_name"] = request.checkpoint
+    model_ref, clip_ref = _apply_loras(workflow, request.loras)
     workflow["2"]["inputs"]["text"] = request.prompt
+    workflow["2"]["inputs"]["clip"] = clip_ref
     workflow["3"]["inputs"]["text"] = request.negative_prompt
+    workflow["3"]["inputs"]["clip"] = clip_ref
     workflow["4"]["inputs"] = {
         "width": request.width,
         "height": request.height,
@@ -47,7 +76,8 @@ def build_text_to_image_workflow(
         sampler_name=request.sampler,
         scheduler=request.scheduler,
     )
-    workflow["7"]["inputs"]["filename_prefix"] = request.output_prefix or output_prefix
+    workflow["5"]["inputs"]["model"] = model_ref
+    workflow["7"]["inputs"]["filename_prefix"] = output_prefix or request.output_prefix
     if request.reference_image:
         workflow["9"] = {
             "class_type": "LoadImage",
@@ -73,8 +103,11 @@ def build_text_to_video_workflow(
     workflow = json.loads(video_template_path().read_text(encoding="utf-8"))
     workflow = deepcopy(workflow)
     workflow["1"]["inputs"]["ckpt_name"] = request.checkpoint
+    model_ref, clip_ref = _apply_loras(workflow, request.loras)
     workflow["2"]["inputs"]["text"] = request.prompt
+    workflow["2"]["inputs"]["clip"] = clip_ref
     workflow["3"]["inputs"]["text"] = request.negative_prompt
+    workflow["3"]["inputs"]["clip"] = clip_ref
     workflow["5"]["inputs"] = {
         "width": request.width,
         "height": request.height,
@@ -82,6 +115,7 @@ def build_text_to_video_workflow(
     }
     motion_model = request.motion_model or "mm_sd_v15_v2.ckpt"
     workflow["4"]["inputs"]["model_name"] = motion_model
+    workflow["4"]["inputs"]["model"] = model_ref
     workflow["4"]["inputs"]["beta_schedule"] = request.beta_schedule
     sampler = workflow["6"]["inputs"]
     sampler.update(
@@ -97,7 +131,7 @@ def build_text_to_video_workflow(
         quality=request.quality,
         lossless=request.lossless,
         method=request.method,
-        filename_prefix=request.output_prefix or output_prefix,
+        filename_prefix=output_prefix or request.output_prefix,
     )
     if request.vae and request.vae != "pixel_space":
         workflow["9"] = {

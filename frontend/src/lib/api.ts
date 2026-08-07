@@ -18,6 +18,7 @@ export type GenerationRequest = {
   media_type: "image" | "video"
   vae: string
   reference_image: string
+  loras: LoRAConfig[]
   frames: number
   motion_model: string
   beta_schedule: string
@@ -35,6 +36,12 @@ export type GenerationRequest = {
   sampler: string
   scheduler: string
   batch_size: number
+}
+
+export type LoRAConfig = {
+  name: string
+  model_strength: number
+  clip_strength: number
 }
 
 export type GenerationTask = {
@@ -112,6 +119,7 @@ export const api = {
   checkStatus: (config: Config) =>
     request<ConnectionStatus>("/comfy/status", { method: "POST", body: JSON.stringify(config) }),
   checkpoints: () => request<string[]>("/comfy/checkpoints"),
+  loraModels: () => request<string[]>("/comfy/lora-models"),
   videoModels: () => request<string[]>("/comfy/video-models"),
   vaeModels: () => request<string[]>("/comfy/vae-models"),
   generate: (data: GenerationRequest) =>

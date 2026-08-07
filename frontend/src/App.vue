@@ -40,6 +40,7 @@ const connectionMessage = ref("尚未连接")
 const settingsError = ref("")
 const checkpoints = ref<string[]>([])
 const motionModels = ref<string[]>([])
+const loraModels = ref<string[]>([])
 const vaeModels = ref<string[]>([])
 const modelCatalog = ref<ModelCatalogResponse>({
   connected: false,
@@ -63,6 +64,13 @@ const submissionAttempted = ref(false)
 const startupError = ref("")
 const localApiUrl = "http://127.0.0.1:8188"
 
+// 图片生成只允许图片用途的 checkpoint，视频模型（如 Wan）不会出现在图片页。
+const imageCheckpoints = computed(() =>
+  modelCatalog.value.remote_models
+    .filter(item => item.kind === "checkpoint" && item.usage === "image")
+    .map(item => item.filename),
+)
+
 const pageMeta: Record<Page, { label: string; hint: string }> = {
   generate: { label: "图片生成", hint: "参数与预览" },
   video: { label: "视频生成", hint: "AnimateDiff" },
@@ -81,7 +89,7 @@ const config = reactive<Config>({
 const form = reactive(createDefaultGenerationRequest())
 const canGenerate = computed(() => canSubmitGeneration(form, connected.value, busy.value))
 const generationBlockedReason = computed(() =>
-  getGenerationBlockedReason(form, connected.value, busy.value, checkpoints.value),
+  getGenerationBlockedReason(form, connected.value, busy.value, imageCheckpoints.value),
 )
 
 const videoForm = reactive({
@@ -163,7 +171,9 @@ async function refreshModels() {
     checkpoints.value = catalog.remote_models
       .filter(item => item.kind === "checkpoint")
       .map(item => item.filename)
-    if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
+    if (!form.checkpoint && imageCheckpoints.value.length) {
+      form.checkpoint = imageCheckpoints.value[0]
+    }
   } catch (error) {
     message.error(error instanceof Error ? error.message : "模型目录加载失败")
     catalogLoaded.value = true
@@ -175,6 +185,16 @@ async function refreshModels() {
 watch(page, value => {
   if (value === "models" && connected.value && !catalogLoaded.value) {
     void refreshModels()
+  }
+})
+
+watch(page, value => {
+  if (
+    value === "generate" &&
+    form.checkpoint &&
+    !imageCheckpoints.value.includes(form.checkpoint)
+  ) {
+    form.checkpoint = imageCheckpoints.value[0] ?? ""
   }
 })
 
@@ -301,6 +321,7 @@ async function refreshConnection() {
         message.success("测试连接成功，设置已保存")
         void loadVideoModels()
         void loadVaeModels()
+        void loadLoraModels()
       }
       return
     }
@@ -311,11 +332,14 @@ async function refreshConnection() {
       connectionMessage.value = state.message
       if (connected.value) {
         checkpoints.value = await api.checkpoints()
-        if (!form.checkpoint && checkpoints.value.length) form.checkpoint = checkpoints.value[0]
+        if (!form.checkpoint && imageCheckpoints.value.length) {
+          form.checkpoint = imageCheckpoints.value[0]
+        }
         await api.saveConfig(config)
         message.success("测试连接成功，设置已保存")
         void loadVideoModels()
         void loadVaeModels()
+        void loadLoraModels()
       } else {
         message.error(`测试连接失败：${state.message}`)
       }
@@ -367,6 +391,14 @@ async function loadVaeModels() {
     vaeModels.value = await api.vaeModels()
   } catch {
     vaeModels.value = []
+  }
+}
+
+async function loadLoraModels() {
+  try {
+    loraModels.value = await api.loraModels()
+  } catch {
+    loraModels.value = []
   }
 }
 
@@ -529,7 +561,8 @@ onMounted(async () => {
           <GenerateView
             v-if="page === 'generate'"
             :form="form"
-            :checkpoints="checkpoints"
+            :checkpoints="imageCheckpoints"
+            :lora-models="loraModels"
             :vae-models="vaeModels"
             :current-task="currentTask"
             :can-generate="canGenerate"
@@ -545,6 +578,7 @@ onMounted(async () => {
             v-else-if="page === 'video'"
             :form="videoForm"
             :checkpoints="checkpoints"
+            :lora-models="loraModels"
             :vae-models="vaeModels"
             :current-task="videoTask"
             :can-generate="canGenerateVideo"

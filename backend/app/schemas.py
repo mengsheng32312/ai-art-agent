@@ -3,6 +3,12 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class LoRAConfig(BaseModel):
+    name: str = Field(min_length=1)
+    model_strength: float = Field(default=1.0, ge=0, le=4)
+    clip_strength: float = Field(default=1.0, ge=0, le=4)
+
+
 class GenerationRequest(BaseModel):
     prompt: str = Field(min_length=1)
     negative_prompt: str = ""
@@ -18,6 +24,7 @@ class GenerationRequest(BaseModel):
     lossless: bool = False
     method: str = "default"
     output_prefix: str = "AIArtAgent"
+    loras: list[LoRAConfig] = []
     width: int = Field(default=1024, ge=64, le=4096, multiple_of=8)
     height: int = Field(default=1024, ge=64, le=4096, multiple_of=8)
     steps: int = Field(default=25, ge=1, le=150)
