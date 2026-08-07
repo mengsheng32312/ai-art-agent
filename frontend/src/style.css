@@ -1141,6 +1141,15 @@ body {
   border-radius: var(--radius-md);
 }
 
+.reference-image-preview {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
 .ant-form-item {
   margin-bottom: 10px;
 }

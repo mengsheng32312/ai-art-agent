@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { Alert, Button, Card, Form, Input, InputNumber, message, Select, Space, Tooltip } from "ant-design-vue"
+import { Alert, Button, Card, Form, Input, InputNumber, message, Select, Space, Tooltip, Upload } from "ant-design-vue"
 import { ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
-import type { GenerationRequest } from "../lib/api"
+import { api, type GenerationRequest } from "../lib/api"
 import { parseWorkflowFile } from "../lib/workflow"
 import FieldLabel from "./FieldLabel.vue"
 
@@ -22,6 +22,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ generate: []; goModels: [] }>()
 const fileInput = ref<HTMLInputElement | null>(null)
+const referenceImageUploading = ref(false)
+const referenceImagePreview = ref("")
 
 const samplerOptions = [
   "euler",
@@ -122,6 +124,26 @@ async function onImportFile(event: Event) {
     message.error("导入失败：文件不是有效的节点工作流 JSON")
   }
 }
+
+async function onReferenceImageUpload(file: File) {
+  referenceImageUploading.value = true
+  try {
+    const result = await api.uploadFile(file, "image")
+    props.form.reference_image = result.name
+    referenceImagePreview.value = URL.createObjectURL(file)
+    message.success("参考图已上传")
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "参考图上传失败")
+  } finally {
+    referenceImageUploading.value = false
+  }
+  return false
+}
+
+function clearReferenceImage() {
+  props.form.reference_image = ""
+  referenceImagePreview.value = ""
+}
 </script>
 
 <template>
@@ -180,6 +202,42 @@ async function onImportFile(event: Event) {
           </Select>
         </Form.Item>
       </Space>
+
+      <div v-if="mode === 'image'" class="step-title">
+        <span class="step-badge">ref</span>
+        <span class="step-name">参考图</span>
+        <span class="step-node">LoadImage + VAEEncode</span>
+      </div>
+      <Form.Item v-if="mode === 'image'" class="step-field">
+        <template #label>
+          <FieldLabel
+            label="参考图重绘"
+            help="上传参考图后按图重绘：参考图作为采样起点，重绘幅度（denoise）越低越接近原图；输出尺寸跟随参考图，画布宽高将被忽略。"
+          />
+        </template>
+        <Space wrap>
+          <Upload
+            :show-upload-list="false"
+            accept="image/*"
+            :before-upload="onReferenceImageUpload"
+          >
+            <Button :loading="referenceImageUploading">
+              <template #icon><UploadOutlined /></template>
+              上传参考图
+            </Button>
+          </Upload>
+          <img
+            v-if="referenceImagePreview"
+            :src="referenceImagePreview"
+            class="reference-image-preview"
+            alt="参考图"
+          />
+          <span v-if="form.reference_image" class="field-help">{{ form.reference_image }}</span>
+          <Button v-if="form.reference_image" size="small" @click="clearReferenceImage">
+            移除
+          </Button>
+        </Space>
+      </Form.Item>
 
       <div class="step-title">
         <span class="step-badge">2</span>

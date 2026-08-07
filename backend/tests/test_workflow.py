@@ -56,3 +56,35 @@ def test_build_workflow_reads_the_packaged_template(monkeypatch, tmp_path) -> No
     )
 
     assert workflow["packaged_fixture"] is True
+
+
+def test_reference_image_uses_load_image_and_vae_encode() -> None:
+    request = GenerationRequest(
+        prompt="a red fox",
+        checkpoint="model.safetensors",
+        reference_image="ref.png",
+        denoise=0.5,
+    )
+
+    workflow = build_text_to_image_workflow(request)
+
+    assert workflow["9"] == {
+        "class_type": "LoadImage",
+        "inputs": {"image": "ref.png"},
+    }
+    assert workflow["10"] == {
+        "class_type": "VAEEncode",
+        "inputs": {"pixels": ["9", 0], "vae": ["1", 2]},
+    }
+    assert workflow["5"]["inputs"]["latent_image"] == ["10", 0]
+    assert workflow["5"]["inputs"]["denoise"] == 0.5
+
+
+def test_workflow_without_reference_image_keeps_empty_latent() -> None:
+    request = GenerationRequest(prompt="a red fox", checkpoint="model.safetensors")
+
+    workflow = build_text_to_image_workflow(request)
+
+    assert "9" not in workflow
+    assert "10" not in workflow
+    assert workflow["5"]["inputs"]["latent_image"] == ["4", 0]

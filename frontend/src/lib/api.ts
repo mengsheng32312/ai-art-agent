@@ -17,6 +17,7 @@ export type GenerationRequest = {
   checkpoint: string
   media_type: "image" | "video"
   vae: string
+  reference_image: string
   frames: number
   motion_model: string
   beta_schedule: string

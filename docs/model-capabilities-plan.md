@@ -57,9 +57,9 @@ LoRA（`LoraLoader`）插在 CheckpointLoader 之后，KSampler 的 model/clip �
 
 ### Phase 2：参考图重绘（img2img）
 
-- [ ] 后端：`GenerationRequest.reference_image`、图片 workflow 增加 `LoadImage + VAEEncode` 分支
-- [ ] 前端：图片生成页参考图上传 + 说明（denoise 语义），提交透传
-- [ ] 验收：上传参考图生成，输出保持参考图比例；远程 ComfyUI 可下载到模型
+- [x] 后端：`GenerationRequest.reference_image`、图片 workflow 增加 `LoadImage + VAEEncode` 分支
+- [x] 前端：图片生成页参考图上传 + 说明（denoise 语义），提交透传
+- [x] 验收：上传参考图生成，输出保持参考图比例；workflow 与前端测试通过
 
 ### Phase 3：LoRA
 

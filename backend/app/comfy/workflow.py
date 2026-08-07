@@ -48,6 +48,16 @@ def build_text_to_image_workflow(
         scheduler=request.scheduler,
     )
     workflow["7"]["inputs"]["filename_prefix"] = request.output_prefix or output_prefix
+    if request.reference_image:
+        workflow["9"] = {
+            "class_type": "LoadImage",
+            "inputs": {"image": request.reference_image},
+        }
+        workflow["10"] = {
+            "class_type": "VAEEncode",
+            "inputs": {"pixels": ["9", 0], "vae": ["1", 2]},
+        }
+        workflow["5"]["inputs"]["latent_image"] = ["10", 0]
     if request.vae and request.vae != "pixel_space":
         workflow["8"] = {
             "class_type": "VAELoader",
