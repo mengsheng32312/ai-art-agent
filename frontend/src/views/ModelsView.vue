@@ -25,7 +25,8 @@ const emit = defineEmits<{
 }>()
 
 const canDownloadLocal = computed(() => Boolean(props.config.comfyui_path))
-const anyDownloading = computed(() => props.downloadingModels.length > 0)
+const isModelDownloading = (item: ModelItem) =>
+  props.downloadingModels.some(model => model.id === item.id)
 const downloadDisabledReason = computed(() => {
   if (!props.config.comfyui_path) return "请先在连接设置填写本地模型目录"
   return ""
@@ -126,12 +127,12 @@ function sourceText(source: ModelItem["source"]) {
   </Card>
 
   <Alert
-    v-if="anyDownloading"
+    v-if="downloadingModels.length"
     class="model-section"
     type="info"
     show-icon
     :message="`正在下载：${downloadingModels.map(item => item.name).join('、')}`"
-    description="下载完成后模型会出现在远程可用列表，期间下载按钮已禁用。"
+    description="下载任务串行执行，完成一个才会开始下一个；正在下载的模型其下载按钮已禁用，其他模型仍可添加任务。"
   />
 
   <Alert
@@ -334,7 +335,7 @@ function sourceText(source: ModelItem["source"]) {
                   <Button
                     v-if="config.mode === 'remote'"
                     :loading="downloadingKey === item.id + '|remote'"
-                    :disabled="anyDownloading"
+                    :disabled="isModelDownloading(item)"
                     @click="emit('download', item.id, 'remote')"
                   >
                     <template #icon><CloudDownloadOutlined /></template>
@@ -343,7 +344,7 @@ function sourceText(source: ModelItem["source"]) {
                   <Tooltip :title="!canDownloadLocal ? downloadDisabledReason : ''">
                     <Button
                       type="primary"
-                      :disabled="anyDownloading || !canDownloadLocal"
+                      :disabled="isModelDownloading(item) || !canDownloadLocal"
                       :loading="downloadingKey === item.id + '|local'"
                       @click="emit('download', item.id, 'local')"
                     >
