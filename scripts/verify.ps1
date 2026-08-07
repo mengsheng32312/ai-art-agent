@@ -5,6 +5,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location (Join-Path $projectRoot "backend")
 try {
     $pytestTemp = Join-Path $projectRoot ".tmp\pytest-$PID"
+    New-Item -ItemType Directory -Force -Path (Split-Path $pytestTemp) | Out-Null
     & ".\.venv\Scripts\python.exe" -m pytest tests -v `
         -p no:cacheprovider `
         --basetemp $pytestTemp
