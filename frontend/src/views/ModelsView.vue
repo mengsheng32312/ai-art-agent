@@ -203,7 +203,7 @@ function sourceText(source: ModelItem["source"]) {
                   :disabled="item.kind !== 'checkpoint' && item.usage !== 'video' && item.kind !== 'vae'"
                   @click="emit('select', item)"
                 >
-                  使用
+                  应用
                 </Button>
               </Space>
             </Space>
@@ -257,7 +257,7 @@ function sourceText(source: ModelItem["source"]) {
                     :disabled="(item.kind !== 'checkpoint' && item.usage !== 'video' && item.kind !== 'vae') || config.mode === 'remote'"
                     @click="emit('select', item)"
                   >
-                    使用
+                    应用
                   </Button>
                 </Tooltip>
               </Space>
@@ -328,7 +328,7 @@ function sourceText(source: ModelItem["source"]) {
                   :disabled="item.kind !== 'checkpoint' && item.usage !== 'video' && item.kind !== 'vae'"
                   @click="emit('select', item)"
                 >
-                  使用
+                  应用
                 </Button>
                 <template v-else>
                   <Button

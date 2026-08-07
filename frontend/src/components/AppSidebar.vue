@@ -30,7 +30,7 @@ const menuItems = [
   { key: "generate", icon: () => h(PictureOutlined), label: "图片生成" },
   { key: "video", icon: () => h(VideoCameraOutlined), label: "视频生成" },
   { key: "models", icon: () => h(AppstoreOutlined), label: "模型管理" },
-  { key: "downloads", icon: () => h(DownloadOutlined), label: "下载中" },
+  { key: "downloads", icon: () => h(DownloadOutlined), label: "下载队列" },
   { key: "history", icon: () => h(HistoryOutlined), label: "历史记录" },
   { key: "settings", icon: () => h(SettingOutlined), label: "连接设置" },
 ]

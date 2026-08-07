@@ -67,7 +67,7 @@ const pageMeta: Record<Page, { label: string; hint: string }> = {
   generate: { label: "图片生成", hint: "参数与预览" },
   video: { label: "视频生成", hint: "AnimateDiff" },
   models: { label: "模型管理", hint: "本地与在线模型" },
-  downloads: { label: "下载中", hint: "远程下载任务" },
+  downloads: { label: "下载队列", hint: "远程下载任务" },
   history: { label: "历史记录", hint: "结果与工作流" },
   settings: { label: "连接设置", hint: "ComfyUI" },
 }
