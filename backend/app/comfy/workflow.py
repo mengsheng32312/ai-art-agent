@@ -117,6 +117,55 @@ def _apply_controlnet(
     return [apply_id, 0], [apply_id, 1]
 
 
+def _apply_hires_fix(
+    workflow: dict,
+    request: GenerationRequest,
+    model_ref: list,
+    positive_ref: list,
+    negative_ref: list,
+    node_start: int = 30,
+) -> None:
+    """第一次采样后用 LatentUpscale 放大并二次精修，VAEDecode 改接第二次输出。"""
+    if request.hires is None:
+        return
+    scale = max(1.0, request.hires.scale)
+    base_width = max(64, (int(request.width / scale) // 8) * 8)
+    base_height = max(64, (int(request.height / scale) // 8) * 8)
+    if not request.reference_image:
+        workflow["4"]["inputs"].update(
+            width=base_width,
+            height=base_height,
+        )
+    upscale_id = str(node_start)
+    workflow[upscale_id] = {
+        "class_type": "LatentUpscale",
+        "inputs": {
+            "samples": ["5", 0],
+            "width": request.width,
+            "height": request.height,
+            "upscale_method": "bicubic",
+            "crop": "disabled",
+        },
+    }
+    second_id = str(node_start + 1)
+    workflow[second_id] = {
+        "class_type": "KSampler",
+        "inputs": {
+            "seed": secrets.randbelow(2**63),
+            "steps": request.hires.steps,
+            "cfg": request.cfg,
+            "sampler_name": request.sampler,
+            "scheduler": request.scheduler,
+            "denoise": request.hires.denoise,
+            "model": model_ref,
+            "positive": positive_ref,
+            "negative": negative_ref,
+            "latent_image": [upscale_id, 0],
+        },
+    }
+    workflow["6"]["inputs"]["samples"] = [second_id, 0]
+
+
 def build_text_to_image_workflow(
     request: GenerationRequest, output_prefix: str = "AIArtAgent"
 ) -> dict:
@@ -147,6 +196,9 @@ def build_text_to_image_workflow(
     if control_refs:
         workflow["5"]["inputs"]["positive"] = control_refs[0]
         workflow["5"]["inputs"]["negative"] = control_refs[1]
+    positive_ref = control_refs[0] if control_refs else ["2", 0]
+    negative_ref = control_refs[1] if control_refs else ["3", 0]
+    _apply_hires_fix(workflow, request, model_ref, positive_ref, negative_ref)
     workflow["7"]["inputs"]["filename_prefix"] = output_prefix or request.output_prefix
     if request.reference_image:
         workflow["9"] = {

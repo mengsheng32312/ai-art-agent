@@ -20,6 +20,7 @@ export type GenerationRequest = {
   reference_image: string
   loras: LoRAConfig[]
   controlnet: ControlNetConfig | null
+  hires: HiresConfig | null
   frames: number
   motion_model: string
   beta_schedule: string
@@ -52,6 +53,12 @@ export type ControlNetConfig = {
   strength: number
   start_percent: number
   end_percent: number
+}
+
+export type HiresConfig = {
+  scale: number
+  steps: number
+  denoise: number
 }
 
 export type GenerationTask = {

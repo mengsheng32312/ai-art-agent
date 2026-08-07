@@ -209,3 +209,59 @@ def test_workflow_without_controlnet_keeps_direct_conditioning() -> None:
     assert "20" not in workflow
     assert workflow["5"]["inputs"]["positive"] == ["2", 0]
     assert workflow["5"]["inputs"]["negative"] == ["3", 0]
+
+
+def test_image_workflow_applies_hires_fix_second_sampler() -> None:
+    request = GenerationRequest(
+        prompt="a red fox",
+        checkpoint="model.safetensors",
+        width=1024,
+        height=1024,
+        hires={"scale": 2.0, "steps": 12, "denoise": 0.5},
+    )
+
+    workflow = build_text_to_image_workflow(request)
+
+    assert workflow["4"]["inputs"]["width"] == 512
+    assert workflow["4"]["inputs"]["height"] == 512
+    assert workflow["30"]["class_type"] == "LatentUpscale"
+    assert workflow["30"]["inputs"] == {
+        "samples": ["5", 0],
+        "width": 1024,
+        "height": 1024,
+        "upscale_method": "bicubic",
+        "crop": "disabled",
+    }
+    assert workflow["31"]["class_type"] == "KSampler"
+    assert workflow["31"]["inputs"]["steps"] == 12
+    assert workflow["31"]["inputs"]["denoise"] == 0.5
+    assert workflow["31"]["inputs"]["latent_image"] == ["30", 0]
+    assert workflow["6"]["inputs"]["samples"] == ["31", 0]
+
+
+def test_hires_fix_respects_reference_image_size() -> None:
+    request = GenerationRequest(
+        prompt="a red fox",
+        checkpoint="model.safetensors",
+        reference_image="ref.png",
+        width=1024,
+        height=1024,
+        hires={"scale": 2.0, "steps": 10, "denoise": 0.4},
+    )
+
+    workflow = build_text_to_image_workflow(request)
+
+    # 参考图模式下首次采样 latent 来自参考图，EmptyLatentImage 尺寸保持原值。
+    assert workflow["4"]["inputs"]["width"] == 1024
+    assert workflow["30"]["inputs"]["width"] == 1024
+    assert workflow["6"]["inputs"]["samples"] == ["31", 0]
+
+
+def test_workflow_without_hires_keeps_single_sampler() -> None:
+    request = GenerationRequest(prompt="a red fox", checkpoint="model.safetensors")
+
+    workflow = build_text_to_image_workflow(request)
+
+    assert "30" not in workflow
+    assert "31" not in workflow
+    assert workflow["6"]["inputs"]["samples"] == ["5", 0]

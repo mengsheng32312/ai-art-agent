@@ -77,9 +77,9 @@ LoRA（`LoraLoader`）插在 CheckpointLoader 之后，KSampler 的 model/clip �
 
 ### Phase 5：Hires fix
 
-- [ ] 后端：`GenerationRequest.hires`、二次采样链
-- [ ] 前端：Hires 开关、放大倍率、二次 denoise
-- [ ] 验收：开启后输出分辨率放大且细节提升
+- [x] 后端：`GenerationRequest.hires`、二次采样链（`LatentUpscale` + 第二次 `KSampler`）
+- [x] 前端：Hires 开关、放大倍率、二次 denoise 与步数
+- [x] 验收：开启后输出分辨率放大且细节提升（全量 53 个后端测试通过）
 
 ### Phase 6：图生视频 / 视频生视频
 

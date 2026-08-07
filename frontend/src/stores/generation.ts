@@ -10,6 +10,7 @@ export function createDefaultGenerationRequest(): GenerationRequest {
     reference_image: "",
     loras: [],
     controlnet: null,
+    hires: null,
     frames: 16,
     motion_model: "",
     beta_schedule: "sqrt_linear (AnimateDiff)",

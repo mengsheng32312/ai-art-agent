@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { Alert, Button, Card, Form, Input, InputNumber, message, Select, Space, Tooltip, Upload } from "ant-design-vue"
+import { Alert, Button, Card, Checkbox, Form, Input, InputNumber, message, Select, Space, Tooltip, Upload } from "ant-design-vue"
 import { PlusOutlined, ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
 import { api, type GenerationRequest } from "../lib/api"
 import { parseWorkflowFile } from "../lib/workflow"
@@ -196,6 +196,12 @@ async function onControlnetImageUpload(file: File) {
 function clearControlnet() {
   props.form.controlnet = null
   controlnetPreview.value = ""
+}
+
+function toggleHires(enabled: boolean) {
+  props.form.hires = enabled
+    ? { scale: 2, steps: 12, denoise: 0.5 }
+    : null
 }
 </script>
 
@@ -493,6 +499,39 @@ function clearControlnet() {
         <Select v-model:value="form.vae" placeholder="可选：默认使用 checkpoint 自带 VAE" allow-clear :not-found-content="'暂无可用 VAE'">
           <Select.Option v-for="item in vaeModels ?? []" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
         </Select>
+      </Form.Item>
+
+      <div v-if="mode === 'image'" class="step-title">
+        <span class="step-badge">hr</span>
+        <span class="step-name">Hires fix 高清放大</span>
+        <span class="step-node">LatentUpscale + KSampler</span>
+      </div>
+      <Form.Item v-if="mode === 'image'" class="step-field">
+        <template #label>
+          <FieldLabel
+            label="Hires fix"
+            help="先按缩小尺寸采样，再放大 latent 用第二次采样精修细节。放大倍率越高耗时越长，二次 denoise 建议 0.3-0.6。"
+          />
+        </template>
+        <Space wrap>
+          <Checkbox
+            :checked="Boolean(form.hires)"
+            @change="event => toggleHires(Boolean(event.target.checked))"
+          >
+            启用高清放大
+          </Checkbox>
+          <template v-if="form.hires">
+            <Tooltip title="放大倍率">
+              <InputNumber v-model:value="form.hires.scale" :min="1" :max="4" :step="0.25" />
+            </Tooltip>
+            <Tooltip title="精修步数">
+              <InputNumber v-model:value="form.hires.steps" :min="1" :max="60" />
+            </Tooltip>
+            <Tooltip title="精修 denoise">
+              <InputNumber v-model:value="form.hires.denoise" :min="0" :max="1" :step="0.05" />
+            </Tooltip>
+          </template>
+        </Space>
       </Form.Item>
 
       <div class="step-title">
