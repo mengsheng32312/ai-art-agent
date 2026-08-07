@@ -488,6 +488,8 @@ fn validate_comfyui_directory(path: String) -> Result<(), String> {
 fn open_in_explorer(path: String) -> Result<(), String> {
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+
         Command::new("explorer.exe")
             .arg(format!("/select,{}", path))
             .creation_flags(0x08000000)
