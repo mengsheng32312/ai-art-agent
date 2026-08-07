@@ -88,11 +88,66 @@ function imageBroken(id: string) {
 
 function buildWorkflowExport(task: GenerationTask) {
   const r = task.request
-  return {
+  const base = {
     version: "0.1.0",
     generated_by: "AI Art Agent",
     prompt_id: task.prompt_id,
     created_at: new Date().toISOString(),
+  }
+  if (r.media_type === "video") {
+    return {
+      ...base,
+      workflow: {
+        last_node_id: 8,
+        nodes: [
+          { id: 1, type: "CheckpointLoaderSimple", inputs: { ckpt_name: r.checkpoint } },
+          { id: 2, type: "CLIPTextEncode", inputs: { text: r.prompt, clip: ["1", 1] } },
+          { id: 3, type: "CLIPTextEncode", inputs: { text: r.negative_prompt, clip: ["1", 1] } },
+          {
+            id: 4,
+            type: "ADE_AnimateDiffLoaderGen1",
+            inputs: { model: ["1", 0], model_name: r.motion_model, beta_schedule: r.beta_schedule },
+          },
+          {
+            id: 5,
+            type: "EmptyLatentImage",
+            inputs: { width: r.width, height: r.height, batch_size: r.frames },
+          },
+          {
+            id: 6,
+            type: "KSampler",
+            inputs: {
+              seed: r.seed,
+              steps: r.steps,
+              cfg: r.cfg,
+              sampler_name: r.sampler,
+              scheduler: r.scheduler,
+              denoise: r.denoise,
+              model: ["4", 0],
+              positive: ["2", 0],
+              negative: ["3", 0],
+              latent_image: ["5", 0],
+            },
+          },
+          { id: 7, type: "VAEDecode", inputs: { samples: ["6", 0], vae: ["1", 2] } },
+          {
+            id: 8,
+            type: "SaveAnimatedWEBP",
+            inputs: {
+              images: ["7", 0],
+              fps: r.fps,
+              lossless: r.lossless,
+              quality: r.quality,
+              method: r.method,
+              filename_prefix: r.output_prefix,
+            },
+          },
+        ],
+      },
+    }
+  }
+  return {
+    ...base,
     workflow: {
       last_node_id: 7,
       nodes: [

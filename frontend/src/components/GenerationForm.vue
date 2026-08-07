@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Tooltip } from "ant-design-vue"
-import { ThunderboltOutlined } from "@ant-design/icons-vue"
+import { ref } from "vue"
+import { Alert, Button, Card, Form, Input, InputNumber, message, Select, Space, Tooltip } from "ant-design-vue"
+import { ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
 import type { GenerationRequest } from "../lib/api"
+import { parseWorkflowFile } from "../lib/workflow"
 
 const props = defineProps<{
   form: GenerationRequest
@@ -18,6 +20,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ generate: []; goModels: [] }>()
+const fileInput = ref<HTMLInputElement | null>(null)
 
 const samplerOptions = [
   "euler",
@@ -96,10 +99,45 @@ const betaScheduleOptions = [
 function submit() {
   emit("generate")
 }
+
+async function onImportFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ""
+  if (!file) return
+  try {
+    const parsed = parseWorkflowFile(JSON.parse(await file.text()))
+    if (parsed.mediaType !== props.mode) {
+      message.warning(
+        parsed.mediaType === "video"
+          ? "这是视频工作流，请到视频生成页导入"
+          : "这是图片工作流，请到图片生成页导入",
+      )
+      return
+    }
+    Object.assign(props.form, parsed.fields)
+    message.success("已导入节点参数")
+  } catch {
+    message.error("导入失败：文件不是有效的节点工作流 JSON")
+  }
+}
 </script>
 
 <template>
   <Card title="生成参数" :bordered="false" class="generation-form-card">
+    <template #extra>
+      <Button size="small" @click="fileInput?.click()">
+        <template #icon><UploadOutlined /></template>
+        导入节点
+      </Button>
+      <input
+        ref="fileInput"
+        type="file"
+        accept=".json,application/json"
+        hidden
+        @change="onImportFile"
+      />
+    </template>
     <Form layout="vertical">
       <div class="step-title">
         <span class="step-badge">1</span>
