@@ -28,6 +28,7 @@ import {
 import type { Page } from "./types"
 import GenerateView from "./views/GenerateView.vue"
 import VideoView from "./views/VideoView.vue"
+import DownloadsView from "./views/DownloadsView.vue"
 import HistoryView from "./views/HistoryView.vue"
 import ModelsView from "./views/ModelsView.vue"
 import SettingsView from "./views/SettingsView.vue"
@@ -66,6 +67,7 @@ const pageMeta: Record<Page, { label: string; hint: string }> = {
   generate: { label: "图片生成", hint: "参数与预览" },
   video: { label: "视频生成", hint: "AnimateDiff" },
   models: { label: "模型管理", hint: "本地与在线模型" },
+  downloads: { label: "下载中", hint: "远程下载任务" },
   history: { label: "历史记录", hint: "结果与工作流" },
   settings: { label: "连接设置", hint: "ComfyUI" },
 }
@@ -547,6 +549,10 @@ onMounted(async () => {
             @refresh="refreshModels"
             @select="selectModel"
             @download="downloadModel"
+          />
+          <DownloadsView
+            v-else-if="page === 'downloads'"
+            :downloading-models="remoteDownloadingModels"
           />
           <HistoryView
             v-else-if="page === 'history'"
