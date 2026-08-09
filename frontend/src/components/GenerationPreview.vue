@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue"
-import { Alert, Button, Card, Empty, Progress, Spin } from "ant-design-vue"
+import { Alert, Button, Card, Empty, Spin } from "ant-design-vue"
 import { proxiedImageUrl, type GenerationTask } from "../lib/api"
 
 const props = defineProps<{ task: GenerationTask | null; blockedReason: string }>()
@@ -58,7 +58,6 @@ function retryImage() {
           <div class="preview-skeleton" />
           <div class="preview-loading-title">正在加载结果</div>
           <div class="preview-loading-hint">图片或视频文件正在读取，请稍候。</div>
-          <Progress :percent="70" status="active" :show-info="false" />
         </div>
       </div>
       <div v-else-if="imageError" class="preview-empty">

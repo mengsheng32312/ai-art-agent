@@ -256,7 +256,7 @@ function downloadWorkflow(task: GenerationTask) {
             <Tooltip title="查看保存位置">
               <Button class="history-action-btn" size="small" :icon="h(FolderOpenOutlined)" @click="showDetail(item)" />
             </Tooltip>
-            <Tooltip title="导出节点（工作流 JSON）">
+            <Tooltip title="导出工作流（JSON）">
               <Button class="history-action-btn" size="small" :icon="h(DownloadOutlined)" @click="downloadWorkflow(item)" />
             </Tooltip>
             <Tooltip title="再次绘制">

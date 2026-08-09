@@ -139,3 +139,13 @@ test("条件图长文件名保持在预览卡片内并可查看完整名称", as
   expect(name.text()).toBe(filename)
   expect(name.attributes("title")).toBe(filename)
 })
+
+test("尚未尝试提交时模型缺失不显示红色校验", async () => {
+  const wrapper = mountForm("text_to_image", [], "")
+  await wrapper.setProps({ blockedReason: "请选择兼容模型" })
+
+  const modelSelector = wrapper.find('[data-testid="model-selector"]')
+  const formItem = modelSelector.element.closest(".ant-form-item")
+
+  expect(formItem?.classList.contains("ant-form-item-has-error")).toBe(false)
+})

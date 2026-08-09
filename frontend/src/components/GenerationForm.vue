@@ -258,9 +258,9 @@ async function onImportFile(event: Event) {
       return
     }
     Object.assign(props.form, parsed.fields)
-    message.success("已导入节点参数")
+    message.success("已导入工作流参数")
   } catch {
-    message.error("导入失败：文件不是有效的节点工作流 JSON")
+    message.error("导入失败：文件不是有效的工作流 JSON")
   }
 }
 
@@ -365,7 +365,7 @@ function clearReferenceVideo() {
     <template #extra>
       <Button size="small" @click="fileInput?.click()">
         <template #icon><UploadOutlined /></template>
-        导入节点
+        导入工作流
       </Button>
       <input
         ref="fileInput"
@@ -426,8 +426,8 @@ function clearReferenceVideo() {
       </div>
       <Form.Item
         class="step-field"
-        :validate-status="blockedReason.includes('模型') || blockedReason.includes('ComfyUI') ? 'error' : undefined"
-        :help="blockedReason.includes('模型') ? blockedReason : undefined"
+        :validate-status="submissionAttempted && (blockedReason.includes('模型') || blockedReason.includes('ComfyUI')) ? 'error' : undefined"
+        :help="submissionAttempted && blockedReason.includes('模型') ? blockedReason : undefined"
       >
         <template #label>
           <FieldLabel
