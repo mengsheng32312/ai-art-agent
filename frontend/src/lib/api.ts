@@ -20,12 +20,20 @@ export type CreationType =
   | "video_to_video"
 
 export type RequiredInput = "reference_image" | "reference_video"
+export type ContentTag =
+  | "portrait"
+  | "landscape"
+  | "anime"
+  | "product"
+  | "architecture"
+  | "general"
 
 export type ModelCapabilityProfile = {
   capabilities: CreationType[]
   required_inputs: Partial<Record<CreationType, RequiredInput[]>>
   required_components: Partial<Record<CreationType, string[]>>
   workflow_family: Partial<Record<CreationType, string>>
+  content_tags: ContentTag[]
   description_zh: string
   recommended_params: Partial<Record<CreationType, Record<string, string | number | boolean>>>
   confirmed: boolean

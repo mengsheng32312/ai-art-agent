@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, ref, watch } from "vue"
 import {
   Alert,
   Button,
@@ -19,8 +19,19 @@ import {
   type UploadFile,
 } from "ant-design-vue"
 import { PlusOutlined, ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
-import { api, type CreationType, type GenerationRequest, type ModelItem } from "../lib/api"
-import { applyCreationType, creationTypeLabels } from "../lib/modelCapabilities"
+import {
+  api,
+  type ContentTag,
+  type CreationType,
+  type GenerationRequest,
+  type ModelItem,
+} from "../lib/api"
+import {
+  applyCreationType,
+  contentTagLabels,
+  creationTypeLabels,
+  filterModelsForContent,
+} from "../lib/modelCapabilities"
 import { parseWorkflowFile } from "../lib/workflow"
 import FieldLabel from "./FieldLabel.vue"
 
@@ -47,6 +58,13 @@ const pendingFiles = ref<Record<string, File>>({})
 const referenceImageFiles = ref<UploadFile[]>([])
 const controlnetFiles = ref<UploadFile[]>([])
 const referenceVideoFiles = ref<UploadFile[]>([])
+const selectedContentTag = ref<ContentTag>("general")
+const beginnerMode = ref(true)
+
+const contentTagOptions = Object.entries(contentTagLabels).map(([value, label]) => ({
+  label,
+  value: value as ContentTag,
+}))
 
 const creationTypeOptions = computed(() =>
   props.mode === "image"
@@ -62,6 +80,35 @@ const creationTypeOptions = computed(() =>
 )
 const selectedModel = computed(() =>
   props.models.find(item => item.filename === props.form.checkpoint),
+)
+const filteredModels = computed(() =>
+  filterModelsForContent(
+    props.models,
+    props.form.creation_type,
+    selectedContentTag.value,
+    beginnerMode.value,
+  ),
+)
+const filteredModelOptions = computed(() =>
+  filteredModels.value.map(item => ({
+    label: `${item.name}（${item.filename}） · ${item.capability_profile.content_tags
+      .map(tag => contentTagLabels[tag])
+      .join("/")}`,
+    value: item.filename,
+    title: item.filename,
+  })),
+)
+watch(
+  filteredModels,
+  models => {
+    if (
+      props.form.checkpoint
+      && !models.some(item => item.filename === props.form.checkpoint)
+    ) {
+      props.form.checkpoint = ""
+    }
+  },
+  { flush: "sync" },
 )
 const selectedModelComponents = computed(() => {
   const components = selectedModel.value?.capability_profile.required_components[
@@ -344,6 +391,32 @@ function clearReferenceVideo() {
         />
       </Form.Item>
 
+      <Space class="form-row" align="start" wrap>
+        <Form.Item class="form-main step-field">
+          <template #label>
+            <FieldLabel
+              label="想生成的内容"
+              help="选择大致题材后，新手选模会优先展示更匹配的模型；选择通用时不限制题材。"
+            />
+          </template>
+          <div data-testid="content-category-selector">
+            <Select v-model:value="selectedContentTag" :options="contentTagOptions" />
+          </div>
+        </Form.Item>
+        <Form.Item class="step-field">
+          <template #label>
+            <FieldLabel
+              label="新手选模"
+              help="开启后隐藏与所选题材不匹配的专用模型，通用模型仍会显示。"
+            />
+          </template>
+          <Space data-testid="beginner-model-switch">
+            <Switch v-model:checked="beginnerMode" />
+            <span>{{ beginnerMode ? "已开启" : "已关闭" }}</span>
+          </Space>
+        </Form.Item>
+      </Space>
+
       <div class="step-title">
         <span class="step-badge">1</span>
         <span class="step-name">模型加载</span>
@@ -362,11 +435,16 @@ function clearReferenceVideo() {
             help="选择生成所用的 checkpoint 模型。加载时 ComfyUI 按文件名从自身模型目录读取：本地模式读取本机 ComfyUI 目录中的文件；远程模式只能加载远程 ComfyUI 上已存在的模型，本机目录文件不会被远程加载。"
           />
         </template>
-        <Select v-model:value="form.checkpoint" placeholder="必填：请选择兼容模型" :not-found-content="'当前任务暂无兼容模型'">
-          <Select.Option v-for="item in models" :key="item.id" :value="item.filename" :title="item.filename">
-            {{ item.name }}（{{ item.filename }}）
-          </Select.Option>
-        </Select>
+        <div data-testid="model-selector">
+          <Select
+            v-model:value="form.checkpoint"
+            :options="filteredModelOptions"
+            placeholder="必填：请选择兼容模型"
+            :not-found-content="beginnerMode && selectedContentTag !== 'general'
+              ? '当前内容分类暂无合适模型，可关闭新手选模查看全部兼容模型'
+              : '当前任务暂无兼容模型'"
+          />
+        </div>
       </Form.Item>
       <Alert
         v-if="selectedModel"

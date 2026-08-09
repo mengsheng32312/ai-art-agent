@@ -2,7 +2,7 @@
 
 import { mount } from "@vue/test-utils"
 import { expect, test, vi } from "vitest"
-import { Upload } from "ant-design-vue"
+import { Select, Switch, Upload } from "ant-design-vue"
 
 import type { ModelItem } from "../lib/api"
 import { createDefaultGenerationRequest } from "../stores/generation"
@@ -29,20 +29,25 @@ const imageModel: ModelItem = {
       text_to_image: "standard_checkpoint",
       image_to_image: "standard_checkpoint",
     },
+    content_tags: ["general"],
     description_zh: "适合通用图片生成和重绘。",
     recommended_params: { image_to_image: { denoise: 0.5 } },
     confirmed: true,
   },
 }
 
-function mountForm(creationType: "text_to_image" | "image_to_image") {
+function mountForm(
+  creationType: "text_to_image" | "image_to_image",
+  models: ModelItem[] = [imageModel],
+  checkpoint = imageModel.filename,
+) {
   const form = createDefaultGenerationRequest()
   form.creation_type = creationType
-  form.checkpoint = imageModel.filename
+  form.checkpoint = checkpoint
   return mount(GenerationForm, {
     props: {
       form,
-      models: [imageModel],
+      models,
       canGenerate: false,
       blockedReason: "",
       submissionAttempted: false,
@@ -70,6 +75,52 @@ test("图生图显示必填参考图和所选模型中文用途", () => {
   expect(wrapper.text()).toContain("参考图（必填）")
   expect(wrapper.text()).toContain("适合通用图片生成和重绘。")
   expect(wrapper.text()).toContain("denoise：0.5")
+})
+
+test("新手选模按内容过滤模型并清空不匹配选择", async () => {
+  const portraitModel: ModelItem = {
+    ...imageModel,
+    id: "portrait",
+    name: "人物模型",
+    filename: "portrait.safetensors",
+    capability_profile: {
+      ...imageModel.capability_profile,
+      content_tags: ["portrait"],
+    },
+  }
+  const landscapeModel: ModelItem = {
+    ...imageModel,
+    id: "landscape",
+    name: "风景模型",
+    filename: "landscape.safetensors",
+    capability_profile: {
+      ...imageModel.capability_profile,
+      content_tags: ["landscape"],
+    },
+  }
+  const wrapper = mountForm(
+    "text_to_image",
+    [portraitModel, landscapeModel, imageModel],
+    landscapeModel.filename,
+  )
+
+  const category = wrapper.find('[data-testid="content-category-selector"]')
+  const beginnerSwitch = wrapper.find('[data-testid="beginner-model-switch"]')
+  expect(category.exists()).toBe(true)
+  expect(beginnerSwitch.exists()).toBe(true)
+  expect(beginnerSwitch.findComponent(Switch).props("checked")).toBe(true)
+
+  category.findComponent(Select).vm.$emit("update:value", "portrait")
+  await wrapper.vm.$nextTick()
+
+  const modelSelector = wrapper.find('[data-testid="model-selector"]').findComponent(Select)
+  const modelValues = modelSelector.props("options").map(
+    (option: { value: string }) => option.value,
+  )
+  expect(modelValues).toContain("portrait.safetensors")
+  expect(modelValues).toContain("image.safetensors")
+  expect(modelValues).not.toContain("landscape.safetensors")
+  expect(wrapper.props("form").checkpoint).toBe("")
 })
 
 test("条件图长文件名保持在预览卡片内并可查看完整名称", async () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { GenerationRequest, ModelItem } from "./api"
 import {
   applyCreationType,
+  filterModelsForContent,
   filterModelsForCreationType,
 } from "./modelCapabilities"
 import { createDefaultGenerationRequest } from "../stores/generation"
@@ -10,6 +11,7 @@ function model(
   filename: string,
   capabilities: ModelItem["capability_profile"]["capabilities"],
   confirmed = true,
+  contentTags = ["general"],
 ): ModelItem {
   return {
     id: filename,
@@ -29,6 +31,7 @@ function model(
       required_inputs: {},
       required_components: {},
       workflow_family: {},
+      content_tags: contentTags,
       description_zh: "用途说明",
       recommended_params: {},
       confirmed,
@@ -48,6 +51,56 @@ describe("model capability helpers", () => {
       .toEqual(["image.safetensors"])
     expect(filterModelsForCreationType(models, "image_to_video").map(item => item.filename))
       .toEqual(["video.safetensors"])
+  })
+
+  it("新手模式保留精准与通用模型并优先精准匹配", () => {
+    const models = [
+      model("general.safetensors", ["text_to_image"]),
+      model("landscape.safetensors", ["text_to_image"], true, ["landscape"]),
+      model("portrait.safetensors", ["text_to_image"], true, ["portrait"]),
+    ]
+
+    expect(
+      filterModelsForContent(models, "text_to_image", "portrait", true).map(
+        item => item.filename,
+      ),
+    ).toEqual(["portrait.safetensors", "general.safetensors"])
+  })
+
+  it("关闭新手模式后显示全部创作任务兼容模型", () => {
+    const models = [
+      model("portrait.safetensors", ["text_to_image"], true, ["portrait"]),
+      model("landscape.safetensors", ["text_to_image"], true, ["landscape"]),
+      model("general.safetensors", ["text_to_image"]),
+    ]
+
+    expect(
+      filterModelsForContent(models, "text_to_image", "portrait", false).map(
+        item => item.filename,
+      ),
+    ).toEqual([
+      "portrait.safetensors",
+      "landscape.safetensors",
+      "general.safetensors",
+    ])
+  })
+
+  it("选择通用内容时不隐藏专用模型", () => {
+    const models = [
+      model("portrait.safetensors", ["text_to_image"], true, ["portrait"]),
+      model("landscape.safetensors", ["text_to_image"], true, ["landscape"]),
+      model("general.safetensors", ["text_to_image"]),
+    ]
+
+    expect(
+      filterModelsForContent(models, "text_to_image", "general", true).map(
+        item => item.filename,
+      ),
+    ).toEqual([
+      "portrait.safetensors",
+      "landscape.safetensors",
+      "general.safetensors",
+    ])
   })
 
   it("clears incompatible model and stale reference inputs when task changes", () => {

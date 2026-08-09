@@ -1,4 +1,4 @@
-import type { CreationType, GenerationRequest, ModelItem } from "./api"
+import type { ContentTag, CreationType, GenerationRequest, ModelItem } from "./api"
 
 export const creationTypeLabels: Record<CreationType, string> = {
   text_to_image: "文生图",
@@ -6,6 +6,15 @@ export const creationTypeLabels: Record<CreationType, string> = {
   text_to_video: "文生视频",
   image_to_video: "图生视频",
   video_to_video: "视频生视频",
+}
+
+export const contentTagLabels: Record<ContentTag, string> = {
+  portrait: "人物",
+  landscape: "风景",
+  anime: "动漫",
+  product: "产品/静物",
+  architecture: "建筑/室内",
+  general: "通用",
 }
 
 export function filterModelsForCreationType(
@@ -18,6 +27,25 @@ export function filterModelsForCreationType(
       item.capability_profile.confirmed &&
       item.capability_profile.capabilities.includes(creationType),
   )
+}
+
+export function filterModelsForContent(
+  models: ModelItem[],
+  creationType: CreationType,
+  contentTag: ContentTag,
+  beginnerMode: boolean,
+): ModelItem[] {
+  const compatible = filterModelsForCreationType(models, creationType)
+  if (!beginnerMode || contentTag === "general") return compatible
+  return compatible
+    .filter(item =>
+      item.capability_profile.content_tags.includes(contentTag)
+      || item.capability_profile.content_tags.includes("general"),
+    )
+    .sort(
+      (a, b) => Number(b.capability_profile.content_tags.includes(contentTag))
+        - Number(a.capability_profile.content_tags.includes(contentTag)),
+    )
 }
 
 export function applyCreationType(
