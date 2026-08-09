@@ -24,4 +24,5 @@ test("生成中使用标准居中加载图标", () => {
 
   expect(wrapper.find(".preview-loading-panel .ant-spin").exists()).toBe(true)
   expect(wrapper.find(".preview-orbit").exists()).toBe(false)
+  expect(wrapper.find(".preview-loading-panel .ant-progress").exists()).toBe(false)
 })

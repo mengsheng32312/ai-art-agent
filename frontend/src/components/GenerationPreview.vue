@@ -79,7 +79,6 @@ function retryImage() {
         <Spin size="large" />
         <div class="preview-loading-title">正在生成</div>
         <div class="preview-loading-hint">任务已提交到 ComfyUI，结果完成后会自动显示。</div>
-        <Progress :percent="task.progress" status="active" />
       </div>
       <Empty
         v-else
