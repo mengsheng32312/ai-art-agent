@@ -104,6 +104,10 @@ class ComfyClient:
         )
         return response.json()
 
+    async def manager_version(self) -> str:
+        response = await self._request("GET", "/v2/manager/version")
+        return response.text
+
     async def manager_install_model(self, model: Any) -> None:
         # ComfyUI-Manager 要求请求体直接就是模型元数据，而不是包一层 {"model": ...}。
         await self._request("POST", "/manager/queue/install_model", json=model)

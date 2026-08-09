@@ -289,6 +289,12 @@ async def build_model_catalog(
         )
 
     try:
+        await client.manager_version()
+        manager_available = True
+    except Exception:
+        pass
+
+    try:
         manager_data = await client.manager_model_list()
         manager_available = True
         for raw in manager_items_payload(manager_data):
@@ -296,7 +302,7 @@ async def build_model_catalog(
             if model:
                 online_models.append(model)
     except Exception:
-        manager_available = False
+        pass
 
     return ModelCatalogResponse(
         connected=connected,

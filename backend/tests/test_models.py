@@ -72,6 +72,14 @@ class UnetModelComfyClient(FakeModelComfyClient):
         return await super().object_info(node_name)
 
 
+class V4ManagerComfyClient(FakeModelComfyClient):
+    async def manager_version(self) -> str:
+        return "V4.1"
+
+    async def manager_model_list(self) -> list[dict]:
+        raise RuntimeError("新版 Manager 不再提供旧模型列表接口")
+
+
 def test_model_catalog_separates_remote_and_local_models(tmp_path: Path) -> None:
     comfy_root = tmp_path / "ComfyUI"
     checkpoint_dir = comfy_root / "models" / "checkpoints"
@@ -101,6 +109,23 @@ def test_model_catalog_separates_remote_and_local_models(tmp_path: Path) -> None
     online = {item["filename"]: item for item in catalog["online_models"]}
     assert online["remote.safetensors"]["installed"] is True
     assert online["downloadable.safetensors"]["installed"] is False
+
+
+def test_model_catalog_recognizes_manager_v4_without_legacy_model_list(
+    tmp_path: Path,
+) -> None:
+    client = TestClient(
+        create_app(
+            data_dir=tmp_path / "data",
+            comfy_factory=lambda _: V4ManagerComfyClient(),
+        )
+    )
+
+    catalog = client.get("/api/models/catalog").json()
+
+    assert catalog["connected"] is True
+    assert catalog["manager_available"] is True
+    assert catalog["online_models"] == []
 
 
 def test_model_catalog_scans_the_selected_local_model_directory(tmp_path: Path) -> None:

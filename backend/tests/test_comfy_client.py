@@ -38,6 +38,20 @@ async def test_client_reads_status_checkpoints_and_queues_prompt() -> None:
 
 
 @pytest.mark.asyncio
+async def test_manager_version_uses_the_v4_status_endpoint() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v2/manager/version":
+            return httpx.Response(200, text="V4.1")
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = ComfyClient("http://comfy", http=http)
+        version = await client.manager_version()
+
+    assert version == "V4.1"
+
+
+@pytest.mark.asyncio
 async def test_manager_install_model_sends_model_metadata_directly() -> None:
     sent: list[dict] = []
     started = 0
