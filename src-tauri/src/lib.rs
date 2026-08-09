@@ -8,9 +8,6 @@ use std::time::{Duration, Instant};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
-const COMFYUI_MANAGER_LOADING_SCRIPT: &str =
-    include_str!("../../frontend/src/lib/comfyuiManagerLoading.js");
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProcessSpec {
     pub program: PathBuf,
@@ -117,6 +114,25 @@ pub fn validate_comfyui_web_url(raw: &str) -> Result<tauri::Url, String> {
         return Err("ComfyUI 地址只支持 http 或 https".into());
     }
     Ok(url)
+}
+
+fn encode_query_value(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
+}
+
+fn comfyui_manager_window_path(target: &tauri::Url) -> PathBuf {
+    PathBuf::from(format!(
+        "index.html?view=comfyui-manager&url={}",
+        encode_query_value(target.as_str())
+    ))
 }
 
 fn comfyui_python(root: &Path, current_dir: &Path) -> PathBuf {
@@ -627,18 +643,6 @@ async fn enable_comfyui_manager(
 fn open_comfyui_manager(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let target = validate_comfyui_web_url(&url)?;
     if let Some(window) = app.get_webview_window("comfyui-manager") {
-        let current = window
-            .url()
-            .map_err(|error| format!("读取 ComfyUI 窗口地址失败：{error}"))?;
-        if current == target {
-            window
-                .show()
-                .map_err(|error| format!("显示 ComfyUI 窗口失败：{error}"))?;
-            window
-                .set_focus()
-                .map_err(|error| format!("聚焦 ComfyUI 窗口失败：{error}"))?;
-            return Ok(());
-        }
         window
             .close()
             .map_err(|error| format!("关闭旧 ComfyUI 窗口失败：{error}"))?;
@@ -647,12 +651,11 @@ fn open_comfyui_manager(app: tauri::AppHandle, url: String) -> Result<(), String
     let window = WebviewWindowBuilder::new(
         &app,
         "comfyui-manager",
-        WebviewUrl::External(target),
+        WebviewUrl::App(comfyui_manager_window_path(&target)),
     )
     .title("ComfyUI 模型库")
     .inner_size(1280.0, 820.0)
     .min_inner_size(960.0, 640.0)
-    .initialization_script(COMFYUI_MANAGER_LOADING_SCRIPT)
     .center()
     .build()
     .map_err(|error| format!("创建 ComfyUI 窗口失败：{error}"))?;
@@ -712,6 +715,19 @@ mod tests {
             "http://127.0.0.1:8188/"
         );
         assert!(validate_comfyui_web_url("file:///tmp/index.html").is_err());
+    }
+
+    #[test]
+    fn builds_local_manager_window_url_with_comfyui_target() {
+        let target = validate_comfyui_web_url("http://127.0.0.1:8188")
+            .expect("valid ComfyUI URL");
+
+        assert_eq!(
+            comfyui_manager_window_path(&target),
+            PathBuf::from(
+                "index.html?view=comfyui-manager&url=http%3A%2F%2F127.0.0.1%3A8188%2F"
+            )
+        );
     }
 
     struct FakeAgentChild {

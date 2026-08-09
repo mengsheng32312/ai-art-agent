@@ -30,6 +30,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+body.manager-window-body {
+  min-width: 0;
+  background: var(--surface);
+}
+
 #app {
   height: 100vh;
   overflow: hidden;
