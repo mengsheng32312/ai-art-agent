@@ -116,23 +116,17 @@ pub fn validate_comfyui_web_url(raw: &str) -> Result<tauri::Url, String> {
     Ok(url)
 }
 
-fn encode_query_value(value: &str) -> String {
-    value
-        .bytes()
-        .map(|byte| match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
-                (byte as char).to_string()
-            }
-            _ => format!("%{byte:02X}"),
-        })
-        .collect()
+fn comfyui_manager_initialization_script(target: &tauri::Url) -> String {
+    format!(
+        "window.__COMFYUI_MANAGER_URL__ = \"{}\";",
+        target.as_str()
+    )
 }
 
-fn comfyui_manager_window_path(target: &tauri::Url) -> PathBuf {
-    PathBuf::from(format!(
-        "index.html?view=comfyui-manager&url={}",
-        encode_query_value(target.as_str())
-    ))
+fn comfyui_manager_host_url(dev_url: Option<tauri::Url>) -> WebviewUrl {
+    dev_url
+        .map(WebviewUrl::External)
+        .unwrap_or_else(|| WebviewUrl::App(PathBuf::from("index.html")))
 }
 
 fn comfyui_python(root: &Path, current_dir: &Path) -> PathBuf {
@@ -640,8 +634,13 @@ async fn enable_comfyui_manager(
 }
 
 #[tauri::command]
-fn open_comfyui_manager(app: tauri::AppHandle, url: String) -> Result<(), String> {
+async fn open_comfyui_manager(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let target = validate_comfyui_web_url(&url)?;
+    let initialization_script = comfyui_manager_initialization_script(&target);
+    #[cfg(debug_assertions)]
+    let host_url = comfyui_manager_host_url(app.config().build.dev_url.clone());
+    #[cfg(not(debug_assertions))]
+    let host_url = comfyui_manager_host_url(None);
     if let Some(window) = app.get_webview_window("comfyui-manager") {
         window
             .close()
@@ -651,11 +650,12 @@ fn open_comfyui_manager(app: tauri::AppHandle, url: String) -> Result<(), String
     let window = WebviewWindowBuilder::new(
         &app,
         "comfyui-manager",
-        WebviewUrl::App(comfyui_manager_window_path(&target)),
+        host_url,
     )
     .title("ComfyUI 模型库")
     .inner_size(1280.0, 820.0)
     .min_inner_size(960.0, 640.0)
+    .initialization_script(initialization_script)
     .center()
     .build()
     .map_err(|error| format!("创建 ComfyUI 窗口失败：{error}"))?;
@@ -718,15 +718,29 @@ mod tests {
     }
 
     #[test]
-    fn builds_local_manager_window_url_with_comfyui_target() {
+    fn builds_manager_window_initialization_script_with_comfyui_target() {
         let target = validate_comfyui_web_url("http://127.0.0.1:8188")
             .expect("valid ComfyUI URL");
 
         assert_eq!(
-            comfyui_manager_window_path(&target),
-            PathBuf::from(
-                "index.html?view=comfyui-manager&url=http%3A%2F%2F127.0.0.1%3A8188%2F"
-            )
+            comfyui_manager_initialization_script(&target),
+            "window.__COMFYUI_MANAGER_URL__ = \"http://127.0.0.1:8188/\";"
+        );
+    }
+
+    #[test]
+    fn manager_window_uses_dev_server_url_when_available() {
+        let dev_url = "http://127.0.0.1:1420"
+            .parse::<tauri::Url>()
+            .expect("valid dev URL");
+
+        assert_eq!(
+            comfyui_manager_host_url(Some(dev_url.clone())),
+            WebviewUrl::External(dev_url)
+        );
+        assert_eq!(
+            comfyui_manager_host_url(None),
+            WebviewUrl::App(PathBuf::from("index.html"))
         );
     }
 

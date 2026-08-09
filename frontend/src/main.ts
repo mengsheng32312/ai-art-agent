@@ -7,11 +7,15 @@ import "./media.css"
 import "./retry.css"
 import "./styles/global.css"
 
-const params = new URLSearchParams(window.location.search)
+type ManagerWindow = Window & {
+  __COMFYUI_MANAGER_URL__?: string
+}
 
-if (params.get("view") === "comfyui-manager") {
+const managerUrl = (window as ManagerWindow).__COMFYUI_MANAGER_URL__
+
+if (managerUrl) {
   document.body.classList.add("manager-window-body")
-  createApp(ComfyuiManagerWindow, { url: params.get("url") ?? "" }).mount("#app")
+  createApp(ComfyuiManagerWindow, { url: managerUrl }).mount("#app")
 } else {
   createApp(App).mount("#app")
 }
