@@ -232,10 +232,15 @@ def create_app(
                 raise ValueError(
                     f"{creation_labels[request.creation_type]}缺少必需组件：运动模型"
                 )
+            comfy_client = comfy()
+            if request.controlnet:
+                controlnet_models = await comfy_client.list_controlnets()
+                if request.controlnet.model not in controlnet_models:
+                    raise ValueError("所选 ControlNet 模型在当前 ComfyUI 中不可用")
             workflow = build_workflow(
                 request, output_prefix=f"AIArtAgent/{task_id}"
             )
-            prompt_id = await comfy().queue_prompt(
+            prompt_id = await comfy_client.queue_prompt(
                 workflow,
                 task_id,
             )

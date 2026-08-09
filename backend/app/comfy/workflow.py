@@ -69,50 +69,58 @@ def _apply_controlnet(
         "class_type": "ControlNetLoader",
         "inputs": {"control_net_name": controlnet.model},
     }
-    processor_id = str(node_start + 1)
+    image_loader_id = str(node_start + 1)
+    workflow[image_loader_id] = {
+        "class_type": "LoadImage",
+        "inputs": {"image": controlnet.image},
+    }
     processor = controlnet.preprocessor
+    image_ref = [image_loader_id, 0]
     if processor == "canny":
+        processor_id = str(node_start + 2)
         workflow[processor_id] = {
             "class_type": "Canny",
             "inputs": {
-                "image": controlnet.image,
-                "low_threshold": 100,
-                "high_threshold": 200,
+                "image": image_ref,
+                "low_threshold": 0.4,
+                "high_threshold": 0.8,
             },
         }
+        image_ref = [processor_id, 0]
     elif processor == "depth":
+        processor_id = str(node_start + 2)
         workflow[processor_id] = {
             "class_type": "DepthAnythingPreprocessor",
-            "inputs": {"image": controlnet.image, "type": "Depth Anything V2 Small"},
+            "inputs": {"image": image_ref, "type": "Depth Anything V2 Small"},
         }
+        image_ref = [processor_id, 0]
     elif processor == "lineart":
+        processor_id = str(node_start + 2)
         workflow[processor_id] = {
             "class_type": "LineartPreprocessor",
-            "inputs": {"image": controlnet.image},
+            "inputs": {"image": image_ref},
         }
+        image_ref = [processor_id, 0]
     elif processor == "openpose":
+        processor_id = str(node_start + 2)
         workflow[processor_id] = {
             "class_type": "OpenposePreprocessor",
             "inputs": {
-                "image": controlnet.image,
+                "image": image_ref,
                 "detect_hand": "enable",
                 "detect_body": "enable",
                 "detect_face": "enable",
             },
         }
-    else:
-        workflow[processor_id] = {
-            "class_type": "LoadImage",
-            "inputs": {"image": controlnet.image},
-        }
-    apply_id = str(node_start + 2)
+        image_ref = [processor_id, 0]
+    apply_id = str(node_start + (3 if processor != "none" else 2))
     workflow[apply_id] = {
         "class_type": "ControlNetApplyAdvanced",
         "inputs": {
             "conditioning": ["2", 0],
             "negative": ["3", 0],
             "control_net": [loader_id, 0],
-            "image": [processor_id, 0],
+            "image": image_ref,
             "strength": controlnet.strength,
             "start_percent": controlnet.start_percent,
             "end_percent": controlnet.end_percent,

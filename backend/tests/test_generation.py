@@ -13,6 +13,9 @@ class FakeComfyClient:
     async def list_checkpoints(self) -> list[str]:
         return ["model.safetensors"]
 
+    async def list_controlnets(self) -> list[str]:
+        return []
+
     async def queue_prompt(self, workflow, client_id: str) -> str:
         self.queued_workflow = workflow
         return "prompt-1"
@@ -135,6 +138,28 @@ def test_generation_rejects_missing_required_component(tmp_path) -> None:
 
     assert response.status_code == 400
     assert response.json() == {"detail": "文生视频缺少必需组件：运动模型"}
+
+
+def test_generation_rejects_controlnet_model_missing_from_comfyui(tmp_path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path, comfy_factory=lambda _: FakeComfyClient()))
+
+    response = client.post(
+        "/api/generations",
+        json={
+            "prompt": "fox",
+            "checkpoint": "model.safetensors",
+            "controlnet": {
+                "model": "missing.safetensors",
+                "image": "condition.png",
+                "preprocessor": "canny",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "所选 ControlNet 模型在当前 ComfyUI 中不可用"
+    }
 
 
 def test_generation_becomes_running_when_comfy_has_started(tmp_path) -> None:

@@ -172,3 +172,39 @@ async def test_list_controlnets_returns_names() -> None:
         names = await client.list_controlnets()
 
     assert names == ["cn.safetensors"]
+
+
+@pytest.mark.asyncio
+async def test_queue_prompt_reports_comfy_validation_details() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400,
+            json={
+                "error": {
+                    "type": "prompt_outputs_failed_validation",
+                    "message": "Prompt outputs failed validation",
+                },
+                "node_errors": {
+                    "20": {
+                        "class_type": "ControlNetLoader",
+                        "errors": [
+                            {
+                                "type": "value_not_in_list",
+                                "message": "Value not in list",
+                                "details": "control_net_name: 'missing.safetensors' not in []",
+                            }
+                        ],
+                    }
+                },
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = ComfyClient("http://comfy", http=http)
+        with pytest.raises(RuntimeError) as error:
+            await client.queue_prompt({"1": {}}, "client-1")
+
+    assert str(error.value) == (
+        "ComfyUI 工作流校验失败；ControlNetLoader：所选值不可用"
+        "（control_net_name: 'missing.safetensors' not in []）"
+    )

@@ -171,20 +171,28 @@ def test_image_workflow_applies_controlnet_with_canny_preprocessor() -> None:
     assert workflow["20"]["inputs"]["control_net_name"] == (
         "control_v11p_sd15_canny.safetensors"
     )
-    assert workflow["21"]["class_type"] == "Canny"
-    assert workflow["21"]["inputs"]["image"] == "edge.png"
-    assert workflow["22"]["class_type"] == "ControlNetApplyAdvanced"
+    assert workflow["21"] == {
+        "class_type": "LoadImage",
+        "inputs": {"image": "edge.png"},
+    }
+    assert workflow["22"]["class_type"] == "Canny"
     assert workflow["22"]["inputs"] == {
+        "image": ["21", 0],
+        "low_threshold": 0.4,
+        "high_threshold": 0.8,
+    }
+    assert workflow["23"]["class_type"] == "ControlNetApplyAdvanced"
+    assert workflow["23"]["inputs"] == {
         "conditioning": ["2", 0],
         "negative": ["3", 0],
         "control_net": ["20", 0],
-        "image": ["21", 0],
+        "image": ["22", 0],
         "strength": 0.9,
         "start_percent": 0.1,
         "end_percent": 0.8,
     }
-    assert workflow["5"]["inputs"]["positive"] == ["22", 0]
-    assert workflow["5"]["inputs"]["negative"] == ["22", 1]
+    assert workflow["5"]["inputs"]["positive"] == ["23", 0]
+    assert workflow["5"]["inputs"]["negative"] == ["23", 1]
 
 
 def test_image_workflow_controlnet_none_preprocessor_uses_raw_image() -> None:

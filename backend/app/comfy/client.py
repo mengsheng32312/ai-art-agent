@@ -8,6 +8,32 @@ class ComfyUnavailableError(RuntimeError):
     """远程 ComfyUI 不可达（例如隧道断开或源站已停止）。"""
 
 
+class ComfyWorkflowError(RuntimeError):
+    """ComfyUI 拒绝工作流时返回的可读错误。"""
+
+
+def _workflow_error(response: httpx.Response) -> ComfyWorkflowError:
+    try:
+        payload = response.json()
+    except ValueError:
+        return ComfyWorkflowError("ComfyUI 工作流校验失败")
+
+    messages = ["ComfyUI 工作流校验失败"]
+    for node_error in payload.get("node_errors", {}).values():
+        node_name = node_error.get("class_type") or "未知节点"
+        for error in node_error.get("errors", []):
+            message = (
+                "所选值不可用"
+                if error.get("type") == "value_not_in_list"
+                else error.get("message") or "节点参数无效"
+            )
+            details = error.get("details")
+            if details:
+                message = f"{message}（{details}）"
+            messages.append(f"{node_name}：{message}")
+    return ComfyWorkflowError("；".join(messages))
+
+
 def _unavailable_error(exc: Exception) -> ComfyUnavailableError:
     if isinstance(exc, httpx.ConnectTimeout):
         return ComfyUnavailableError(
@@ -44,6 +70,8 @@ class ComfyClient:
             raise ComfyUnavailableError(
                 "远程 ComfyUI 暂时不可用：连接隧道已断开，请重新运行 Colab 并更新 API 地址"
             )
+        if path == "/prompt" and response.status_code == 400:
+            raise _workflow_error(response)
         response.raise_for_status()
         return response
 
