@@ -8,6 +8,9 @@ use std::time::{Duration, Instant};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
+const COMFYUI_MANAGER_LOADING_SCRIPT: &str =
+    include_str!("../../frontend/src/lib/comfyuiManagerLoading.js");
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProcessSpec {
     pub program: PathBuf,
@@ -649,6 +652,7 @@ fn open_comfyui_manager(app: tauri::AppHandle, url: String) -> Result<(), String
     .title("ComfyUI 模型库")
     .inner_size(1280.0, 820.0)
     .min_inner_size(960.0, 640.0)
+    .initialization_script(COMFYUI_MANAGER_LOADING_SCRIPT)
     .center()
     .build()
     .map_err(|error| format!("创建 ComfyUI 窗口失败：{error}"))?;
