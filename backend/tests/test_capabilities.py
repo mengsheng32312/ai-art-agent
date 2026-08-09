@@ -39,6 +39,27 @@ def test_standard_checkpoint_exposes_supported_tasks_and_requirements(tmp_path: 
     assert profile.required_components["text_to_video"] == ["motion_model"]
     assert profile.workflow_family["text_to_image"] == "standard_checkpoint"
     assert profile.recommended_params["image_to_image"] == {"denoise": 0.5}
+    assert profile.content_tags == ["general"]
+
+
+def test_checkpoint_content_tags_are_inferred_from_model_metadata(tmp_path: Path) -> None:
+    cases = [
+        ("realistic-portrait.safetensors", "测试模型", ["portrait"]),
+        ("mountain-landscape.safetensors", "测试模型", ["landscape"]),
+        ("anime-style.safetensors", "测试模型", ["anime"]),
+        ("product-photo.safetensors", "测试模型", ["product"]),
+        ("interior-design.safetensors", "测试模型", ["architecture"]),
+        ("unknown-model.safetensors", "测试模型", ["general"]),
+        ("custom.safetensors", "适合人物和风景摄影", ["portrait", "landscape"]),
+    ]
+
+    for filename, description, expected in cases:
+        item = model(
+            filename,
+            path=str(tmp_path / "models" / "checkpoints" / filename),
+        ).model_copy(update={"description": description})
+
+        assert infer_model_capability(item).content_tags == expected
 
 
 def test_wan_checkpoint_exposes_only_supported_video_tasks() -> None:
@@ -72,6 +93,7 @@ def test_capability_store_persists_user_override(tmp_path: Path) -> None:
         capabilities=["text_to_video"],
         required_components={"text_to_video": ["motion_model"]},
         workflow_family={"text_to_video": "animatediff"},
+        content_tags=["anime"],
         description_zh="用于制作短动画",
         confirmed=True,
     )
@@ -145,6 +167,7 @@ def test_capability_override_endpoint_updates_catalog_and_survives_restart(
         "required_inputs": {"image_to_video": ["reference_image"]},
         "required_components": {},
         "workflow_family": {"image_to_video": "custom_workflow"},
+        "content_tags": ["general"],
         "description_zh": "自定义图生视频模型",
         "recommended_params": {},
         "confirmed": True,

@@ -1,14 +1,32 @@
 import json
 from pathlib import Path
 
-from .schemas import ModelCapabilityProfile, ModelItem
+from .schemas import ContentTag, ModelCapabilityProfile, ModelItem
 
 
 PENDING_DESCRIPTION = "暂未识别该模型的生成能力，请先确认用途。"
+CONTENT_KEYWORDS: dict[ContentTag, tuple[str, ...]] = {
+    "portrait": ("portrait", "face", "character", "人物", "人像", "肖像"),
+    "landscape": ("landscape", "scenery", "scenic", "nature", "风景", "景观", "自然"),
+    "anime": ("anime", "manga", "cartoon", "comic", "动漫", "二次元", "漫画"),
+    "product": ("product", "still life", "商品", "产品", "静物"),
+    "architecture": ("architecture", "architectural", "interior", "building", "room", "建筑", "室内", "家装"),
+}
+
+
+def infer_content_tags(item: ModelItem) -> list[ContentTag]:
+    metadata = f"{item.name} {item.filename} {item.description}".casefold()
+    matches = [
+        tag
+        for tag, keywords in CONTENT_KEYWORDS.items()
+        if any(keyword in metadata for keyword in keywords)
+    ]
+    return matches or ["general"]
 
 
 def infer_model_capability(item: ModelItem) -> ModelCapabilityProfile:
     lowered = f"{item.name} {item.filename}".lower()
+    content_tags = infer_content_tags(item)
     if item.kind == "checkpoint" and "wan" in lowered:
         return ModelCapabilityProfile(
             capabilities=["image_to_video", "video_to_video"],
@@ -28,6 +46,7 @@ def infer_model_capability(item: ModelItem) -> ModelCapabilityProfile:
                 "image_to_video": {"frames": 41, "fps": 16},
                 "video_to_video": {"frames": 33, "fps": 16},
             },
+            content_tags=content_tags,
             description_zh="Wan 视频生成模型，可根据图片或视频生成新视频。",
             confirmed=True,
         )
@@ -51,11 +70,15 @@ def infer_model_capability(item: ModelItem) -> ModelCapabilityProfile:
                 "image_to_image": {"denoise": 0.5},
                 "text_to_video": {"frames": 16, "fps": 8},
             },
+            content_tags=content_tags,
             description_zh="标准图片检查点，可生成图片；安装运动模型后可生成短视频。",
             confirmed=True,
         )
 
-    return ModelCapabilityProfile(description_zh=PENDING_DESCRIPTION)
+    return ModelCapabilityProfile(
+        content_tags=content_tags,
+        description_zh=PENDING_DESCRIPTION,
+    )
 
 
 class CapabilityStore:

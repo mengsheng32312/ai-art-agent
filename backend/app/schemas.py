@@ -11,6 +11,14 @@ CreationType = Literal[
     "video_to_video",
 ]
 RequiredInput = Literal["reference_image", "reference_video"]
+ContentTag = Literal[
+    "portrait",
+    "landscape",
+    "anime",
+    "product",
+    "architecture",
+    "general",
+]
 
 
 class LoRAConfig(BaseModel):
@@ -105,6 +113,7 @@ class ModelCapabilityProfile(BaseModel):
     )
     required_components: dict[CreationType, list[str]] = Field(default_factory=dict)
     workflow_family: dict[CreationType, str] = Field(default_factory=dict)
+    content_tags: list[ContentTag] = Field(default_factory=lambda: ["general"])
     description_zh: str = ""
     recommended_params: dict[CreationType, dict[str, str | int | float | bool]] = (
         Field(default_factory=dict)
