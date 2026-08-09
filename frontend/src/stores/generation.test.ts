@@ -93,4 +93,23 @@ describe("generation store helpers", () => {
       "请上传参考视频",
     )
   })
+
+  it("blocks submission when a condition image has no ControlNet model", () => {
+    const request = createDefaultGenerationRequest()
+    request.prompt = "pixel warrior"
+    request.checkpoint = "model.safetensors"
+    request.controlnet = {
+      model: "",
+      preprocessor: "canny",
+      image: "condition.png",
+      strength: 1,
+      start_percent: 0,
+      end_percent: 1,
+    }
+
+    expect(canSubmitGeneration(request, true, false)).toBe(false)
+    expect(getGenerationBlockedReason(request, true, false, [request.checkpoint])).toBe(
+      "请选择 ControlNet 模型",
+    )
+  })
 })

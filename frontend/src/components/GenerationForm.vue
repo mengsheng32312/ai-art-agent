@@ -436,7 +436,9 @@ function clearReferenceVideo() {
               class="reference-media-preview"
             />
             <div class="reference-media-meta">
-              <strong>{{ referenceImageFiles[0].name }}</strong>
+              <strong class="reference-media-name" :title="referenceImageFiles[0].name">
+                {{ referenceImageFiles[0].name }}
+              </strong>
               <span class="field-help">预览已加载，生成时上传到 ComfyUI</span>
               <Button size="small" @click="clearReferenceImage">移除</Button>
             </div>
@@ -475,7 +477,9 @@ function clearReferenceVideo() {
               muted
             />
             <div class="reference-media-meta">
-              <strong>{{ referenceVideoFiles[0].name }}</strong>
+              <strong class="reference-media-name" :title="referenceVideoFiles[0].name">
+                {{ referenceVideoFiles[0].name }}
+              </strong>
               <span class="field-help">预览已加载，生成时上传到 ComfyUI</span>
               <Button size="small" @click="clearReferenceVideo">移除</Button>
             </div>
@@ -578,7 +582,12 @@ function clearReferenceVideo() {
         <span class="step-name">ControlNet 控制</span>
         <span class="step-node">ControlNetApplyAdvanced</span>
       </div>
-      <Form.Item v-if="mode === 'image'" class="step-field">
+      <Form.Item
+        v-if="mode === 'image'"
+        class="step-field"
+        :validate-status="submissionAttempted && blockedReason.includes('ControlNet') ? 'error' : undefined"
+        :help="submissionAttempted && blockedReason.includes('ControlNet') ? blockedReason : undefined"
+      >
         <template #label>
           <FieldLabel
             label="ControlNet"
@@ -603,7 +612,9 @@ function clearReferenceVideo() {
               class="reference-media-preview"
             />
             <div class="reference-media-meta">
-              <strong>{{ controlnetFiles[0].name }}</strong>
+              <strong class="reference-media-name" :title="controlnetFiles[0].name">
+                {{ controlnetFiles[0].name }}
+              </strong>
               <span class="field-help">预览已加载，生成时上传到 ComfyUI</span>
               <Button size="small" @click="clearControlnet">移除</Button>
             </div>

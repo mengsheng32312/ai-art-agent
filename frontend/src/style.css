@@ -1178,9 +1178,18 @@ body {
 
 .reference-media-meta {
   display: grid;
+  flex: 1 1 0;
   min-width: 0;
   gap: 6px;
   justify-items: start;
+}
+
+.reference-media-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ant-form-item {

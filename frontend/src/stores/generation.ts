@@ -46,6 +46,9 @@ export function canSubmitGeneration(
     Boolean(request.reference_image?.trim())
   const videoOk =
     request.creation_type !== "video_to_video" || Boolean(request.reference_video?.trim())
+  const controlnetOk =
+    !request.controlnet ||
+    (Boolean(request.controlnet.model?.trim()) && Boolean(request.controlnet.image?.trim()))
   return (
     connected &&
     Boolean(request.prompt.trim()) &&
@@ -53,6 +56,7 @@ export function canSubmitGeneration(
     motionOk &&
     mediaOk &&
     videoOk &&
+    controlnetOk &&
     !busy
   )
 }
@@ -75,6 +79,10 @@ export function getGenerationBlockedReason(
     return "请上传参考视频"
   if (!checkpoints.length) return "当前没有可用模型，请检查 ComfyUI 模型目录"
   if (!request.checkpoint) return "请选择模型"
+  if (request.controlnet && !request.controlnet.model?.trim())
+    return "请选择 ControlNet 模型"
+  if (request.controlnet && !request.controlnet.image?.trim())
+    return "请上传条件图"
   return ""
 }
 

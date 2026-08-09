@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 
 import { mount } from "@vue/test-utils"
-import { expect, test } from "vitest"
+import { expect, test, vi } from "vitest"
+import { Upload } from "ant-design-vue"
 
 import type { ModelItem } from "../lib/api"
 import { createDefaultGenerationRequest } from "../stores/generation"
@@ -69,4 +70,23 @@ test("图生图显示必填参考图和所选模型中文用途", () => {
   expect(wrapper.text()).toContain("参考图（必填）")
   expect(wrapper.text()).toContain("适合通用图片生成和重绘。")
   expect(wrapper.text()).toContain("denoise：0.5")
+})
+
+test("条件图长文件名保持在预览卡片内并可查看完整名称", async () => {
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: vi.fn(() => "blob:condition-preview"),
+  })
+  const wrapper = mountForm("text_to_image")
+  const filename = `${"very-long-condition-image-name-".repeat(8)}.png`
+  const file = new File(["image"], filename, { type: "image/png" })
+  const upload = wrapper.findComponent(Upload)
+  const beforeUpload = upload.props("beforeUpload") as (file: File) => boolean
+
+  beforeUpload(file)
+  await wrapper.vm.$nextTick()
+
+  const name = wrapper.find(".reference-media-name")
+  expect(name.text()).toBe(filename)
+  expect(name.attributes("title")).toBe(filename)
 })

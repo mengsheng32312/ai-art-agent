@@ -134,6 +134,47 @@ export type UploadResponse = {
   mode: "local" | "remote"
 }
 
+const apiFieldLabels: Record<string, string> = {
+  prompt: "画面描述",
+  checkpoint: "模型",
+  "controlnet.model": "ControlNet 模型",
+  "controlnet.image": "条件图",
+  reference_image: "参考图",
+  reference_video: "参考视频",
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function validationIssueMessage(issue: Record<string, unknown>): string {
+  const loc = Array.isArray(issue.loc)
+    ? issue.loc.filter(item => item !== "body").map(String).join(".")
+    : ""
+  const label = apiFieldLabels[loc] ?? loc
+  if (issue.type === "missing") return label ? `${label}为必填项` : "存在必填项未填写"
+  if (issue.type === "string_too_short") return label ? `${label}不能为空` : "输入不能为空"
+  const message = typeof issue.msg === "string" ? issue.msg : "输入内容不符合要求"
+  return label ? `${label}：${message}` : message
+}
+
+function apiErrorMessage(detail: unknown, fallback: string): string {
+  if (typeof detail === "string" && detail.trim()) return detail
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map(item => isRecord(item) ? validationIssueMessage(item) : String(item))
+      .filter(Boolean)
+    return messages.join("；") || fallback
+  }
+  if (isRecord(detail)) {
+    if (typeof detail.message === "string" && detail.message.trim()) return detail.message
+    if (typeof detail.msg === "string" && detail.msg.trim()) return detail.msg
+    if ("detail" in detail) return apiErrorMessage(detail.detail, fallback)
+    return JSON.stringify(detail)
+  }
+  return fallback
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
@@ -149,7 +190,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
-    throw new Error(body.detail ?? `请求失败 (${response.status})`)
+    const fallback = `请求失败 (${response.status})`
+    throw new Error(apiErrorMessage(body.detail, fallback))
   }
   return response.json()
 }
