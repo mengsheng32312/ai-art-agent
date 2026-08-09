@@ -115,6 +115,40 @@ def test_model_catalog_scans_the_selected_local_model_directory(tmp_path: Path) 
     ]
 
 
+def test_model_catalog_resolves_a_windows_portable_outer_directory(tmp_path: Path) -> None:
+    portable_root = tmp_path / "ComfyUI_windows_portable"
+    model_root = portable_root / "ComfyUI" / "models"
+    (model_root / "checkpoints").mkdir(parents=True)
+    (model_root / "diffusion_models").mkdir()
+    (model_root / "text_encoders").mkdir()
+    (model_root / "checkpoints" / "image.safetensors").write_text("model")
+    (model_root / "diffusion_models" / "video.safetensors").write_text("model")
+    (model_root / "text_encoders" / "encoder.safetensors").write_text("model")
+
+    client = TestClient(
+        create_app(data_dir=tmp_path / "data", comfy_factory=lambda _: FakeModelComfyClient())
+    )
+    client.put(
+        "/api/config",
+        json={
+            "mode": "local",
+            "api_url": "http://127.0.0.1:8188",
+            "comfyui_path": str(portable_root),
+        },
+    )
+
+    catalog = client.get("/api/models/catalog").json()
+
+    assert {
+        (item["filename"], item["kind"])
+        for item in catalog["local_models"]
+    } == {
+        ("image.safetensors", "checkpoint"),
+        ("video.safetensors", "checkpoint"),
+        ("encoder.safetensors", "other"),
+    }
+
+
 def test_download_to_remote_passes_model_metadata_directly(tmp_path: Path) -> None:
     fake = FakeModelComfyClient()
     client = TestClient(

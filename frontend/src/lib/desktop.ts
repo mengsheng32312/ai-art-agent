@@ -95,6 +95,12 @@ export async function startComfyui(path: string): Promise<void> {
   await tauri.invoke<number>("start_comfyui", { path })
 }
 
+export async function enableComfyuiManager(path: string): Promise<void> {
+  const tauri = core()
+  if (!tauri) return
+  await tauri.invoke<number>("enable_comfyui_manager", { path })
+}
+
 export async function stopComfyui(): Promise<void> {
   const tauri = core()
   if (!tauri) return

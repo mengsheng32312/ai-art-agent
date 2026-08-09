@@ -105,6 +105,25 @@ pub fn validate_comfyui_directory_path(root: &Path) -> Result<(), String> {
         .ok_or_else(|| "目录中未找到 ComfyUI 的 main.py 或 portable 启动 .bat".into())
 }
 
+fn comfyui_python(root: &Path, current_dir: &Path) -> PathBuf {
+    let mut candidates = vec![
+        root.join("python_embeded").join("python.exe"),
+        current_dir
+            .parent()
+            .unwrap_or(current_dir)
+            .join("python_embeded")
+            .join("python.exe"),
+    ];
+    for base in [current_dir, root] {
+        candidates.push(base.join(".venv").join("Scripts").join("python.exe"));
+        candidates.push(base.join("venv").join("Scripts").join("python.exe"));
+    }
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.is_file())
+        .unwrap_or_else(|| PathBuf::from("python"))
+}
+
 pub fn comfyui_process_spec(root: &Path) -> Result<ProcessSpec, String> {
     validate_comfyui_directory_path(root)?;
     if comfyui_entry_point(root).is_none() {
@@ -123,30 +142,50 @@ pub fn comfyui_process_spec(root: &Path) -> Result<ProcessSpec, String> {
         .parent()
         .expect("ComfyUI entry point has a parent")
         .to_path_buf();
-    let mut python_candidates = vec![
-        root.join("python_embeded").join("python.exe"),
-        current_dir
-            .parent()
-            .unwrap_or(&current_dir)
-            .join("python_embeded")
-            .join("python.exe"),
-    ];
-    for base in [&current_dir, root] {
-        python_candidates.push(base.join(".venv").join("Scripts").join("python.exe"));
-        python_candidates.push(base.join("venv").join("Scripts").join("python.exe"));
-    }
-    let program = python_candidates
-        .into_iter()
-        .find(|candidate| candidate.is_file())
-        .unwrap_or_else(|| PathBuf::from("python"));
+    let program = comfyui_python(root, &current_dir);
 
     Ok(ProcessSpec {
         program,
         current_dir,
-        args: ["main.py", "--listen", "127.0.0.1", "--port", "8188"]
+        args: [
+            "main.py",
+            "--listen",
+            "127.0.0.1",
+            "--port",
+            "8188",
+            "--enable-manager",
+        ]
             .into_iter()
             .map(OsString::from)
             .collect(),
+    })
+}
+
+pub fn comfyui_manager_install_spec(root: &Path) -> Result<ProcessSpec, String> {
+    validate_comfyui_directory_path(root)?;
+    let entry = comfyui_entry_point(root)
+        .ok_or_else(|| "当前 ComfyUI 启动方式不支持一键启用内置 Manager".to_string())?;
+    let current_dir = entry
+        .parent()
+        .expect("ComfyUI entry point has a parent")
+        .to_path_buf();
+    let requirements = current_dir.join("manager_requirements.txt");
+    if !requirements.is_file() {
+        return Err("当前 ComfyUI 版本未包含 manager_requirements.txt，请先更新 ComfyUI".into());
+    }
+
+    Ok(ProcessSpec {
+        program: comfyui_python(root, &current_dir),
+        current_dir,
+        args: [
+            OsString::from("-m"),
+            OsString::from("pip"),
+            OsString::from("install"),
+            OsString::from("-r"),
+            requirements.into_os_string(),
+        ]
+        .into_iter()
+        .collect(),
     })
 }
 
@@ -233,6 +272,31 @@ fn spawn_process(spec: &ProcessSpec) -> Result<Child, String> {
             "无法启动 {}：{error}",
             spec.program.as_os_str().to_string_lossy()
         )
+    })
+}
+
+fn run_process_to_completion(spec: &ProcessSpec) -> Result<(), String> {
+    let mut command = Command::new(&spec.program);
+    command.args(&spec.args).current_dir(&spec.current_dir);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let output = command.output().map_err(|error| {
+        format!(
+            "无法运行 {}：{error}",
+            spec.program.as_os_str().to_string_lossy()
+        )
+    })?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if detail.is_empty() {
+        format!("Manager 依赖安装失败：{}", output.status)
+    } else {
+        format!("Manager 依赖安装失败：{detail}")
     })
 }
 
@@ -527,6 +591,20 @@ fn start_comfyui(path: String, processes: State<'_, ManagedProcesses>) -> Result
 }
 
 #[tauri::command]
+async fn enable_comfyui_manager(
+    path: String,
+    processes: State<'_, ManagedProcesses>,
+) -> Result<u32, String> {
+    let root = PathBuf::from(path);
+    let install_spec = comfyui_manager_install_spec(&root)?;
+    tauri::async_runtime::spawn_blocking(move || run_process_to_completion(&install_spec))
+        .await
+        .map_err(|error| format!("Manager 安装任务失败：{error}"))??;
+    stop_managed_comfyui(&processes)?;
+    start_managed_comfyui(&root, &processes)
+}
+
+#[tauri::command]
 fn stop_comfyui(processes: State<'_, ManagedProcesses>) -> Result<(), String> {
     stop_managed_comfyui(&processes)
 }
@@ -548,6 +626,7 @@ pub fn run() {
             open_in_explorer,
             start_local_agent,
             start_comfyui,
+            enable_comfyui_manager,
             stop_comfyui,
             stop_managed_processes
         ])
@@ -650,5 +729,36 @@ mod tests {
         assert_eq!(endpoint.base_url, "http://127.0.0.1:8001");
         assert_eq!(children.len(), 1);
         assert_eq!(children[0].agent_port, Some(8001));
+    }
+
+    #[test]
+    fn portable_comfyui_starts_with_the_builtin_manager_enabled() {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let portable_root = temporary.path();
+        let comfy_root = portable_root.join("ComfyUI");
+        std::fs::create_dir_all(&comfy_root).expect("create ComfyUI directory");
+        std::fs::write(comfy_root.join("main.py"), "").expect("create main.py");
+        std::fs::write(comfy_root.join("manager_requirements.txt"), "comfyui_manager==4.1")
+            .expect("create manager requirements");
+        std::fs::create_dir_all(portable_root.join("python_embeded"))
+            .expect("create embedded Python directory");
+        std::fs::write(portable_root.join("python_embeded").join("python.exe"), "")
+            .expect("create embedded Python executable");
+
+        let spec = comfyui_process_spec(portable_root).expect("portable process spec");
+
+        assert!(spec.args.contains(&OsString::from("--enable-manager")));
+
+        let install_spec = comfyui_manager_install_spec(portable_root)
+            .expect("portable Manager install process spec");
+        assert_eq!(
+            install_spec.program,
+            portable_root.join("python_embeded").join("python.exe")
+        );
+        assert_eq!(install_spec.args[0..4], ["-m", "pip", "install", "-r"]);
+        assert_eq!(
+            install_spec.args[4],
+            comfy_root.join("manager_requirements.txt").into_os_string()
+        );
     }
 }

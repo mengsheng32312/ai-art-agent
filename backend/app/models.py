@@ -24,6 +24,14 @@ MODEL_NODES: dict[ModelKind, tuple[str, str]] = {
 
 MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
 PREVIEW_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+MODEL_FOLDER_KINDS: dict[str, ModelKind] = {
+    "checkpoints": "checkpoint",
+    "diffusion_models": "checkpoint",
+    "unet": "checkpoint",
+    "loras": "lora",
+    "controlnet": "controlnet",
+    "vae": "vae",
+}
 
 VIDEO_KEYWORDS = (
     "motion",
@@ -101,44 +109,51 @@ def find_preview_image(model_file: Path) -> Path | None:
     return None
 
 
+def resolve_local_model_root(config: AppConfig) -> Path | None:
+    raw_path = config.local_model_path or config.comfyui_path
+    if not raw_path:
+        return None
+
+    selected = Path(raw_path)
+    if selected.name.lower() == "models":
+        return selected
+
+    candidates = [selected, selected / "models", selected / "ComfyUI" / "models"]
+    for candidate in candidates:
+        if candidate.is_dir() and any(
+            (candidate / folder).is_dir() for folder in MODEL_FOLDER_KINDS
+        ):
+            return candidate
+    return next((candidate for candidate in candidates[1:] if candidate.is_dir()), selected)
+
+
 def scan_local_models(config: AppConfig) -> list[ModelItem]:
-    if config.local_model_path:
-        root = Path(config.local_model_path)
-        directories = {
-            kind: root / relative_dir.name
-            for kind, relative_dir in MODEL_DIRS.items()
-        }
-    elif config.comfyui_path:
-        root = Path(config.comfyui_path)
-        directories = {
-            kind: root / relative_dir
-            for kind, relative_dir in MODEL_DIRS.items()
-        }
-    else:
+    root = resolve_local_model_root(config)
+    if not root or not root.is_dir():
         return []
 
     items: list[ModelItem] = []
-    for kind, directory in directories.items():
-        if not directory.exists():
+    for file in sorted(root.rglob("*")):
+        if not file.is_file() or file.suffix.lower() not in MODEL_EXTENSIONS:
             continue
-        for file in sorted(directory.rglob("*")):
-            if not file.is_file() or file.suffix.lower() not in MODEL_EXTENSIONS:
-                continue
-            preview = find_preview_image(file)
-            items.append(
-                ModelItem(
-                    id=model_id(kind, file.name, "local"),
-                    name=model_name(file.name),
-                    kind=kind,
-                    usage=infer_usage(file.name),
-                    filename=file.name,
-                    source="local",
-                    installed=True,
-                    path=str(file),
-                    preview_url=f"local:{preview}" if preview else None,
-                    description="本地 ComfyUI 模型文件",
-                )
+        relative = file.relative_to(root)
+        folder = relative.parts[0].lower() if len(relative.parts) > 1 else ""
+        kind = MODEL_FOLDER_KINDS.get(folder, "other")
+        preview = find_preview_image(file)
+        items.append(
+            ModelItem(
+                id=model_id(kind, str(relative), "local"),
+                name=model_name(file.name),
+                kind=kind,
+                usage=infer_usage(str(relative)),
+                filename=file.name,
+                source="local",
+                installed=True,
+                path=str(file),
+                preview_url=f"local:{preview}" if preview else None,
+                description="本地 ComfyUI 模型文件",
             )
+        )
     return items
 
 
@@ -300,18 +315,14 @@ async def request_manager_download(
             if config.mode == "local" or destination == "remote":
                 await client.manager_install_model(raw)
             else:
-                model_root = config.local_model_path or (
-                    str(Path(config.comfyui_path) / "models")
-                    if config.comfyui_path
-                    else None
-                )
+                model_root = resolve_local_model_root(config)
                 if not model_root:
                     raise ValueError("请先在连接设置中填写本地模型目录")
                 url = str(raw.get("url") or "").strip()
                 if not url:
                     raise ValueError("该模型没有直链下载地址，无法下载到本地")
                 folder = str(raw.get("save_path") or MODEL_DIRS[model.kind].name).strip("/")
-                destination_dir = Path(model_root) / folder
+                destination_dir = model_root / folder
                 await client.download_model_file(url, model.filename, destination_dir)
             return model
 

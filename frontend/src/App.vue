@@ -6,6 +6,7 @@ import AppSidebar from "./components/AppSidebar.vue"
 import { antTheme } from "./styles/theme"
 import {
   isDesktop,
+  enableComfyuiManager,
   openInExplorer,
   prepareDesktopAgent,
   recordDesktopStartupError,
@@ -60,6 +61,7 @@ const busy = ref(false)
 const testingConnection = ref(false)
 const loadingModels = ref(false)
 const downloadingModelKey = ref("")
+const enablingManager = ref(false)
 const remoteDownloadingModels = ref<ModelItem[]>([])
 const catalogLoaded = ref(false)
 const notice = ref("")
@@ -397,11 +399,39 @@ async function chooseLocalModelDirectory() {
     const selected = await selectDirectory()
     if (selected) {
       config.local_model_path = selected
+      await api.saveConfig(config)
+      catalogLoaded.value = false
       clearActionState()
     }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : String(error)
     noticeType.value = "error"
+  }
+}
+
+async function enableManager() {
+  if (!config.comfyui_path?.trim()) {
+    message.warning("请先在连接设置选择 ComfyUI 安装目录")
+    return
+  }
+
+  enablingManager.value = true
+  try {
+    await enableComfyuiManager(config.comfyui_path)
+    connected.value = false
+    connectionMessage.value = "正在等待 ComfyUI Manager 启动..."
+    const ready = await waitForCandidateComfyui()
+    if (!ready) throw new Error("ComfyUI Manager 启动超时")
+    catalogLoaded.value = false
+    await refreshModels()
+    if (!modelCatalog.value.manager_available) {
+      throw new Error("Manager 依赖已安装，但当前 ComfyUI 未以 Manager 模式启动")
+    }
+    message.success("ComfyUI Manager 已启用")
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "ComfyUI Manager 启用失败")
+  } finally {
+    enablingManager.value = false
   }
 }
 
@@ -641,9 +671,11 @@ onMounted(async () => {
             :loading="loadingModels"
             :downloading-key="downloadingModelKey"
             :downloading-models="remoteDownloadingModels"
+            :enabling-manager="enablingManager"
             @refresh="refreshModels"
             @select="selectModel"
             @download="downloadModel"
+            @enable-manager="enableManager"
           />
           <DownloadsView
             v-else-if="page === 'downloads'"
