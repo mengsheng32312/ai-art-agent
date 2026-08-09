@@ -27,6 +27,7 @@ describe("generation store helpers", () => {
     expect(request.cfg).toBe(7)
     expect(request.seed).toBe(-1)
     expect(request.batch_size).toBe(1)
+    expect(request.creation_type).toBe("text_to_image")
   })
 
   it("requires connection, prompt, checkpoint, and idle state before submission", () => {
@@ -69,5 +70,27 @@ describe("generation store helpers", () => {
     expect(first).toHaveLength(1)
     expect(second).toHaveLength(1)
     expect(second[0]).toMatchObject({ id: "task-1", status: "completed", progress: 100 })
+  })
+
+  it("validates required media from the explicit creation type", () => {
+    const request = createDefaultGenerationRequest()
+    request.prompt = "pixel warrior"
+    request.checkpoint = "model.safetensors"
+    request.creation_type = "image_to_image"
+
+    expect(canSubmitGeneration(request, true, false)).toBe(false)
+    expect(getGenerationBlockedReason(request, true, false, [request.checkpoint])).toBe(
+      "请上传参考图",
+    )
+
+    request.reference_image = "ref.png"
+    expect(canSubmitGeneration(request, true, false)).toBe(true)
+
+    request.creation_type = "video_to_video"
+    request.reference_video = ""
+    expect(canSubmitGeneration(request, true, false)).toBe(false)
+    expect(getGenerationBlockedReason(request, true, false, [request.checkpoint])).toBe(
+      "请上传参考视频",
+    )
   })
 })

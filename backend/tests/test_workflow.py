@@ -2,8 +2,12 @@ import json
 import sys
 
 from app.comfy.workflow import (
+    build_image_to_image_workflow,
+    build_image_to_video_workflow,
     build_text_to_image_workflow,
     build_text_to_video_workflow,
+    build_video_to_video_workflow,
+    build_workflow,
 )
 from app.schemas import GenerationRequest
 
@@ -69,7 +73,7 @@ def test_reference_image_uses_load_image_and_vae_encode() -> None:
         denoise=0.5,
     )
 
-    workflow = build_text_to_image_workflow(request)
+    workflow = build_image_to_image_workflow(request)
 
     assert workflow["9"] == {
         "class_type": "LoadImage",
@@ -249,7 +253,7 @@ def test_hires_fix_respects_reference_image_size() -> None:
         hires={"scale": 2.0, "steps": 10, "denoise": 0.4},
     )
 
-    workflow = build_text_to_image_workflow(request)
+    workflow = build_image_to_image_workflow(request)
 
     # 参考图模式下首次采样 latent 来自参考图，EmptyLatentImage 尺寸保持原值。
     assert workflow["4"]["inputs"]["width"] == 1024
@@ -280,7 +284,7 @@ def test_wan_i2v_workflow_builds_image_to_video_chain() -> None:
         fps=16,
     )
 
-    workflow = build_text_to_video_workflow(request)
+    workflow = build_image_to_video_workflow(request)
 
     assert workflow["1"]["class_type"] == "UNETLoader"
     assert workflow["1"]["inputs"]["unet_name"] == (
@@ -309,7 +313,7 @@ def test_wan_v2v_workflow_extracts_first_and_last_frames() -> None:
         frames=33,
     )
 
-    workflow = build_text_to_video_workflow(request)
+    workflow = build_video_to_video_workflow(request)
 
     assert workflow["6"]["class_type"] == "LoadVideo"
     assert workflow["6"]["inputs"]["video"] == "clip.mp4"
@@ -333,7 +337,7 @@ def test_wan_workflow_applies_loras_to_model_and_clip() -> None:
         loras=[{"name": "style.safetensors", "model_strength": 0.9, "clip_strength": 0.7}],
     )
 
-    workflow = build_text_to_video_workflow(request)
+    workflow = build_image_to_video_workflow(request)
 
     assert workflow["20"]["class_type"] == "LoraLoader"
     assert workflow["20"]["inputs"]["model"] == ["1", 0]
@@ -354,3 +358,78 @@ def test_animate_diff_t2v_workflow_unchanged_by_default() -> None:
 
     assert workflow["4"]["class_type"] == "ADE_AnimateDiffLoaderGen1"
     assert "WanImageToVideo" not in str(workflow)
+
+
+def test_explicit_text_to_image_does_not_infer_image_to_image_from_stale_reference() -> None:
+    request = GenerationRequest(
+        prompt="a cat",
+        checkpoint="model.safetensors",
+        creation_type="text_to_image",
+        reference_image="stale.png",
+    )
+
+    workflow = build_workflow(request)
+
+    assert "LoadImage" not in {node["class_type"] for node in workflow.values()}
+    assert workflow["5"]["inputs"]["latent_image"] == ["4", 0]
+
+
+def test_build_workflow_routes_all_explicit_creation_types() -> None:
+    requests = {
+        "text_to_image": GenerationRequest(
+            prompt="cat", checkpoint="image.safetensors", creation_type="text_to_image"
+        ),
+        "image_to_image": GenerationRequest(
+            prompt="cat",
+            checkpoint="image.safetensors",
+            creation_type="image_to_image",
+            reference_image="ref.png",
+        ),
+        "text_to_video": GenerationRequest(
+            prompt="cat",
+            checkpoint="image.safetensors",
+            creation_type="text_to_video",
+            motion_model="mm.ckpt",
+        ),
+        "image_to_video": GenerationRequest(
+            prompt="cat",
+            checkpoint="wan.safetensors",
+            creation_type="image_to_video",
+            reference_image="ref.png",
+        ),
+        "video_to_video": GenerationRequest(
+            prompt="cat",
+            checkpoint="wan.safetensors",
+            creation_type="video_to_video",
+            reference_video="ref.mp4",
+        ),
+    }
+
+    workflows = {name: build_workflow(request) for name, request in requests.items()}
+
+    assert workflows["text_to_image"]["4"]["class_type"] == "EmptyLatentImage"
+    assert workflows["image_to_image"]["9"]["class_type"] == "LoadImage"
+    assert workflows["text_to_video"]["4"]["class_type"] == "ADE_AnimateDiffLoaderGen1"
+    assert workflows["image_to_video"]["9"]["class_type"] == "WanImageToVideo"
+    assert workflows["video_to_video"]["9"]["class_type"] == "WanVideoToVideo"
+
+
+def test_reference_based_workflows_reject_missing_required_media() -> None:
+    missing_image = GenerationRequest(
+        prompt="cat", checkpoint="image.safetensors", creation_type="image_to_image"
+    )
+    missing_video = GenerationRequest(
+        prompt="cat", checkpoint="wan.safetensors", creation_type="video_to_video"
+    )
+
+    try:
+        build_workflow(missing_image)
+        raise AssertionError("图生图缺少参考图时必须失败")
+    except ValueError as exc:
+        assert str(exc) == "图生图需要参考图片"
+
+    try:
+        build_workflow(missing_video)
+        raise AssertionError("视频生视频缺少参考视频时必须失败")
+    except ValueError as exc:
+        assert str(exc) == "视频生视频需要参考视频"

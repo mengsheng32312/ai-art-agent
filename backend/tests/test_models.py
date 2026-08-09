@@ -57,6 +57,21 @@ class FakeModelComfyClient:
         return f"remote-{filename}"
 
 
+class UnetModelComfyClient(FakeModelComfyClient):
+    async def object_info(self, node_name: str) -> dict:
+        if node_name == "UNETLoader":
+            return {
+                "UNETLoader": {
+                    "input": {
+                        "required": {
+                            "unet_name": [["wan2.2_i2v_14B_fp8_scaled.safetensors"]]
+                        }
+                    }
+                }
+            }
+        return await super().object_info(node_name)
+
+
 def test_model_catalog_separates_remote_and_local_models(tmp_path: Path) -> None:
     comfy_root = tmp_path / "ComfyUI"
     checkpoint_dir = comfy_root / "models" / "checkpoints"
@@ -112,6 +127,29 @@ def test_model_catalog_scans_the_selected_local_model_directory(tmp_path: Path) 
 
     assert [item["filename"] for item in catalog["local_models"]] == [
         "local-only.safetensors"
+    ]
+
+
+def test_model_catalog_includes_diffusion_models_exposed_by_unet_loader(
+    tmp_path: Path,
+) -> None:
+    client = TestClient(
+        create_app(
+            data_dir=tmp_path / "data",
+            comfy_factory=lambda _: UnetModelComfyClient(),
+        )
+    )
+
+    catalog = client.get("/api/models/catalog").json()
+
+    wan = next(
+        item
+        for item in catalog["remote_models"]
+        if item["filename"] == "wan2.2_i2v_14B_fp8_scaled.safetensors"
+    )
+    assert wan["capability_profile"]["capabilities"] == [
+        "image_to_video",
+        "video_to_video",
     ]
 
 

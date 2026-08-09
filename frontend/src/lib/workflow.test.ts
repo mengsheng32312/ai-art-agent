@@ -71,6 +71,7 @@ describe("parseWorkflowFile", () => {
     const parsed = parseWorkflowFile(imageWorkflow)
 
     expect(parsed.mediaType).toBe("image")
+    expect(parsed.creationType).toBe("text_to_image")
     expect(parsed.fields).toMatchObject({
       checkpoint: "model.safetensors",
       prompt: "mountain lake",
@@ -91,6 +92,7 @@ describe("parseWorkflowFile", () => {
     const parsed = parseWorkflowFile(videoWorkflow)
 
     expect(parsed.mediaType).toBe("video")
+    expect(parsed.creationType).toBe("text_to_video")
     expect(parsed.fields).toMatchObject({
       motion_model: "mm_sd_v15_v2.ckpt",
       beta_schedule: "sqrt_linear (AnimateDiff)",
@@ -102,6 +104,53 @@ describe("parseWorkflowFile", () => {
       method: "default",
     })
     expect(parsed.fields.batch_size).toBeUndefined()
+  })
+
+  it("recognizes image-to-image from LoadImage and VAEEncode nodes", () => {
+    const parsed = parseWorkflowFile({
+      nodes: [
+        { type: "CheckpointLoaderSimple", inputs: { ckpt_name: "image.safetensors" } },
+        { type: "LoadImage", inputs: { image: "reference.png" } },
+        { type: "VAEEncode", inputs: { pixels: ["2", 0] } },
+        { type: "SaveImage", inputs: {} },
+      ],
+    })
+
+    expect(parsed.creationType).toBe("image_to_image")
+    expect(parsed.fields).toMatchObject({
+      creation_type: "image_to_image",
+      reference_image: "reference.png",
+    })
+  })
+
+  it("recognizes Wan image-to-video and video-to-video workflows", () => {
+    const imageToVideo = parseWorkflowFile({
+      nodes: [
+        { type: "UNETLoader", inputs: { unet_name: "wan-i2v.safetensors" } },
+        { type: "LoadImage", inputs: { image: "start.png" } },
+        { type: "WanImageToVideo", inputs: {} },
+        { type: "SaveAnimatedWEBP", inputs: {} },
+      ],
+    })
+    const videoToVideo = parseWorkflowFile({
+      nodes: [
+        { type: "UNETLoader", inputs: { unet_name: "wan-v2v.safetensors" } },
+        { type: "LoadVideo", inputs: { video: "source.mp4" } },
+        { type: "WanVideoToVideo", inputs: {} },
+        { type: "SaveAnimatedWEBP", inputs: {} },
+      ],
+    })
+
+    expect(imageToVideo.fields).toMatchObject({
+      creation_type: "image_to_video",
+      checkpoint: "wan-i2v.safetensors",
+      reference_image: "start.png",
+    })
+    expect(videoToVideo.fields).toMatchObject({
+      creation_type: "video_to_video",
+      checkpoint: "wan-v2v.safetensors",
+      reference_video: "source.mp4",
+    })
   })
 
   it("matches CLIP texts by sampler references regardless of node order", () => {

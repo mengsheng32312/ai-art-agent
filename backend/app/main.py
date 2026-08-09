@@ -11,16 +11,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 import uvicorn
 
+from .capabilities import CapabilityStore, infer_model_capability
 from .comfy.client import ComfyClient
 from .comfy.resolver import install_fallback_resolver
-from .comfy.workflow import build_text_to_image_workflow, build_text_to_video_workflow
+from .comfy.workflow import build_workflow
 from .history import HistoryStore
-from .models import build_model_catalog, request_manager_download
+from .models import build_model_catalog, infer_usage, request_manager_download
 from .schemas import (
     ConnectionStatus,
     GenerationRequest,
     GenerationTask,
     ManagerQueueStatus,
+    ModelCapabilityProfile,
+    ModelCapabilityUpdate,
     ModelCatalogResponse,
     ModelDownloadRequest,
     ModelItem,
@@ -39,6 +42,7 @@ def create_app(
     root = data_dir or default_data_dir()
     store = ConfigStore(root / "config.json")
     history = HistoryStore(root / "history.json")
+    capability_store = CapabilityStore(root / "model-capabilities.json")
     missing_polls: dict[str, int] = {}
     app = FastAPI(title="AI Art Agent", version="0.1.0")
     app.add_middleware(
@@ -182,14 +186,54 @@ def create_app(
     async def create_generation(request: GenerationRequest) -> GenerationTask:
         task_id = str(uuid4())
         try:
-            workflow = (
-                build_text_to_video_workflow(
-                    request, output_prefix=f"AIArtAgent/{task_id}"
+            profile = capability_store.load(request.checkpoint) or infer_model_capability(
+                ModelItem(
+                    id=f"generation:checkpoint:{request.checkpoint}",
+                    name=Path(request.checkpoint).stem,
+                    kind="checkpoint",
+                    usage=infer_usage(request.checkpoint),
+                    filename=request.checkpoint,
+                    source="comfyui",
+                    installed=True,
+                    description="ComfyUI 当前可用模型",
                 )
-                if request.media_type == "video"
-                else build_text_to_image_workflow(
-                    request, output_prefix=f"AIArtAgent/{task_id}"
+            )
+            creation_labels = {
+                "text_to_image": "文生图",
+                "image_to_image": "图生图",
+                "text_to_video": "文生视频",
+                "image_to_video": "图生视频",
+                "video_to_video": "视频生视频",
+            }
+            if not profile.confirmed:
+                raise ValueError(
+                    "暂未确认该模型的生成能力，请先在模型管理中设置用途。"
                 )
+            if request.creation_type not in profile.capabilities:
+                raise ValueError(
+                    f"所选模型不支持{creation_labels[request.creation_type]}"
+                )
+            for required_input in profile.required_inputs.get(
+                request.creation_type, []
+            ):
+                if not getattr(request, required_input).strip():
+                    input_label = (
+                        "参考图片"
+                        if required_input == "reference_image"
+                        else "参考视频"
+                    )
+                    raise ValueError(
+                        f"{creation_labels[request.creation_type]}需要{input_label}"
+                    )
+            required_components = profile.required_components.get(
+                request.creation_type, []
+            )
+            if "motion_model" in required_components and not request.motion_model:
+                raise ValueError(
+                    f"{creation_labels[request.creation_type]}缺少必需组件：运动模型"
+                )
+            workflow = build_workflow(
+                request, output_prefix=f"AIArtAgent/{task_id}"
             )
             prompt_id = await comfy().queue_prompt(
                 workflow,
@@ -201,6 +245,8 @@ def create_app(
                 request=request,
                 prompt_id=prompt_id,
             )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         history.upsert(task)
@@ -309,7 +355,19 @@ def create_app(
 
     @app.get("/api/models/catalog", response_model=ModelCatalogResponse)
     async def get_model_catalog() -> ModelCatalogResponse:
-        return await build_model_catalog(store.load(), comfy())
+        return await build_model_catalog(store.load(), comfy(), capability_store)
+
+    @app.put(
+        "/api/models/capabilities", response_model=ModelCapabilityProfile
+    )
+    def put_model_capabilities(
+        request: ModelCapabilityUpdate,
+    ) -> ModelCapabilityProfile:
+        profile = ModelCapabilityProfile.model_validate(
+            request.model_dump(exclude={"filename"})
+        )
+        capability_store.save(request.filename, profile)
+        return profile
 
     @app.post("/api/models/download", response_model=ModelItem)
     async def post_model_download(request: ModelDownloadRequest) -> ModelItem:

@@ -1,6 +1,16 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+CreationType = Literal[
+    "text_to_image",
+    "image_to_image",
+    "text_to_video",
+    "image_to_video",
+    "video_to_video",
+]
+RequiredInput = Literal["reference_image", "reference_video"]
 
 
 class LoRAConfig(BaseModel):
@@ -28,6 +38,7 @@ class GenerationRequest(BaseModel):
     prompt: str = Field(min_length=1)
     negative_prompt: str = ""
     checkpoint: str = Field(min_length=1)
+    creation_type: CreationType = "text_to_image"
     media_type: Literal["image", "video"] = "image"
     video_mode: Literal["t2v", "i2v", "v2v"] = "t2v"
     vae: str | None = None
@@ -54,6 +65,20 @@ class GenerationRequest(BaseModel):
     scheduler: str = "normal"
     batch_size: int = Field(default=1, ge=1, le=8)
 
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_creation_fields(cls, value):
+        if not isinstance(value, dict) or value.get("creation_type"):
+            return value
+        data = dict(value)
+        if data.get("media_type") == "video":
+            data["creation_type"] = {
+                "t2v": "text_to_video",
+                "i2v": "image_to_video",
+                "v2v": "video_to_video",
+            }.get(data.get("video_mode", "t2v"), "text_to_video")
+        return data
+
 
 class ConnectionStatus(BaseModel):
     connected: bool
@@ -73,6 +98,24 @@ class GenerationTask(BaseModel):
 ModelKind = Literal["checkpoint", "lora", "controlnet", "vae", "other"]
 
 
+class ModelCapabilityProfile(BaseModel):
+    capabilities: list[CreationType] = Field(default_factory=list)
+    required_inputs: dict[CreationType, list[RequiredInput]] = Field(
+        default_factory=dict
+    )
+    required_components: dict[CreationType, list[str]] = Field(default_factory=dict)
+    workflow_family: dict[CreationType, str] = Field(default_factory=dict)
+    description_zh: str = ""
+    recommended_params: dict[CreationType, dict[str, str | int | float | bool]] = (
+        Field(default_factory=dict)
+    )
+    confirmed: bool = False
+
+
+class ModelCapabilityUpdate(ModelCapabilityProfile):
+    filename: str = Field(min_length=1)
+
+
 class ModelItem(BaseModel):
     id: str
     name: str
@@ -86,6 +129,9 @@ class ModelItem(BaseModel):
     preview_url: str | None = None
     size_label: str | None = None
     reference_url: str | None = None
+    capability_profile: ModelCapabilityProfile = Field(
+        default_factory=ModelCapabilityProfile
+    )
 
 
 class ModelCatalogResponse(BaseModel):

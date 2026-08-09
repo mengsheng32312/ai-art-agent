@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
-import { Alert, Button, Card, Col, Empty, Pagination, Row, Segmented, Space, Spin, Tag, Tooltip } from "ant-design-vue"
+import { Alert, Button, Card, Checkbox, Col, Empty, Input, Modal, Pagination, Row, Segmented, Space, Spin, Tag, Tooltip } from "ant-design-vue"
 import {
   CloudDownloadOutlined,
   LinkOutlined,
   ReloadOutlined,
 } from "@ant-design/icons-vue"
-import { proxiedImageUrl, type Config, type ModelCatalogResponse, type ModelItem } from "../lib/api"
+import {
+  proxiedImageUrl,
+  type Config,
+  type CreationType,
+  type ModelCapabilityUpdate,
+  type ModelCatalogResponse,
+  type ModelItem,
+} from "../lib/api"
+import { creationTypeLabels } from "../lib/modelCapabilities"
 
 const props = defineProps<{
   config: Config
@@ -24,7 +32,56 @@ const emit = defineEmits<{
   select: [model: ModelItem]
   download: [id: string, destination: "remote" | "local"]
   enableManager: []
+  saveCapabilities: [profile: ModelCapabilityUpdate]
 }>()
+
+const editingModel = ref<ModelItem | null>(null)
+const editingCapabilities = ref<CreationType[]>([])
+const editingDescription = ref("")
+const capabilityOptions = Object.entries(creationTypeLabels).map(([value, label]) => ({
+  value: value as CreationType,
+  label,
+}))
+
+function openCapabilitySettings(model: ModelItem) {
+  editingModel.value = model
+  editingCapabilities.value = [...model.capability_profile.capabilities]
+  editingDescription.value = model.capability_profile.description_zh
+}
+
+function saveCapabilitySettings() {
+  if (!editingModel.value) return
+  const requiredInputs: ModelCapabilityUpdate["required_inputs"] = {}
+  const requiredComponents: ModelCapabilityUpdate["required_components"] = {}
+  const workflowFamily: ModelCapabilityUpdate["workflow_family"] = {}
+  for (const capability of editingCapabilities.value) {
+    if (capability === "image_to_image" || capability === "image_to_video") {
+      requiredInputs[capability] = ["reference_image"]
+    } else if (capability === "video_to_video") {
+      requiredInputs[capability] = ["reference_video"]
+    }
+    if (capability === "text_to_video") {
+      requiredComponents[capability] = ["motion_model"]
+      workflowFamily[capability] = "animatediff"
+    } else if (capability === "image_to_video" || capability === "video_to_video") {
+      requiredComponents[capability] = ["text_encoder", "vae"]
+      workflowFamily[capability] = "wan_video"
+    } else {
+      workflowFamily[capability] = "standard_checkpoint"
+    }
+  }
+  emit("saveCapabilities", {
+    filename: editingModel.value.filename,
+    capabilities: [...editingCapabilities.value],
+    required_inputs: requiredInputs,
+    required_components: requiredComponents,
+    workflow_family: workflowFamily,
+    description_zh: editingDescription.value.trim(),
+    recommended_params: editingModel.value.capability_profile.recommended_params,
+    confirmed: editingCapabilities.value.length > 0,
+  })
+  editingModel.value = null
+}
 
 const localModelPath = computed(() =>
   props.config.local_model_path || (props.config.mode === "local" ? props.config.comfyui_path : null),
@@ -124,6 +181,31 @@ const availableModelTitle = computed(() =>
 <template>
   <div class="page-workspace page-scroll">
 
+  <Modal
+    :open="Boolean(editingModel)"
+    title="模型能力设置"
+    :footer="null"
+    @cancel="editingModel = null"
+  >
+    <Space direction="vertical" size="middle" style="width: 100%">
+      <span class="field-help">请选择该模型与当前内置工作流兼容的用途。</span>
+      <Checkbox.Group v-model:value="editingCapabilities">
+        <Space direction="vertical">
+          <Checkbox v-for="option in capabilityOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </Checkbox>
+        </Space>
+      </Checkbox.Group>
+      <Input.TextArea v-model:value="editingDescription" :rows="3" placeholder="中文用途说明" />
+      <Space style="justify-content: flex-end; width: 100%">
+        <Button @click="editingModel = null">取消</Button>
+        <Button data-testid="save-capabilities" type="primary" @click="saveCapabilitySettings">
+          保存
+        </Button>
+      </Space>
+    </Space>
+  </Modal>
+
   <Card :bordered="false" class="model-toolbar">
     <div class="model-toolbar-content">
       <Button :loading="loading" :disabled="loading" @click="emit('refresh')">
@@ -203,6 +285,9 @@ const availableModelTitle = computed(() =>
                 <span :title="item.name">{{ item.name }}</span>
                 <Tag :color="usageMeta(item.usage).color">{{ usageMeta(item.usage).text }}</Tag>
                 <Tag>{{ kindText(item.kind) }}</Tag>
+                <Tag v-if="item.kind === 'checkpoint'" :color="item.capability_profile.confirmed ? 'success' : 'warning'">
+                  {{ item.capability_profile.confirmed ? '能力已确认' : '能力待确认' }}
+                </Tag>
               </Space>
             </template>
             <Space direction="vertical" size="middle" class="model-content">
@@ -219,6 +304,9 @@ const availableModelTitle = computed(() =>
                   @click="emit('select', item)"
                 >
                   应用
+                </Button>
+                <Button v-if="item.kind === 'checkpoint'" @click="openCapabilitySettings(item)">
+                  能力设置
                 </Button>
               </Space>
             </Space>
@@ -255,6 +343,9 @@ const availableModelTitle = computed(() =>
                 <span :title="item.name">{{ item.name }}</span>
                 <Tag :color="usageMeta(item.usage).color">{{ usageMeta(item.usage).text }}</Tag>
                 <Tag>{{ kindText(item.kind) }}</Tag>
+                <Tag v-if="item.kind === 'checkpoint'" :color="item.capability_profile.confirmed ? 'success' : 'warning'">
+                  {{ item.capability_profile.confirmed ? '能力已确认' : '能力待确认' }}
+                </Tag>
               </Space>
             </template>
             <Space direction="vertical" size="middle" class="model-content">
@@ -275,6 +366,9 @@ const availableModelTitle = computed(() =>
                     应用
                   </Button>
                 </Tooltip>
+                <Button v-if="item.kind === 'checkpoint'" @click="openCapabilitySettings(item)">
+                  能力设置
+                </Button>
               </Space>
             </Space>
           </Card>

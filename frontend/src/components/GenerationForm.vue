@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import {
   Alert,
   Button,
@@ -12,18 +12,21 @@ import {
   Segmented,
   Select,
   Space,
+  Switch,
+  Tag,
   Tooltip,
   Upload,
   type UploadFile,
 } from "ant-design-vue"
 import { PlusOutlined, ThunderboltOutlined, UploadOutlined } from "@ant-design/icons-vue"
-import { api, type GenerationRequest } from "../lib/api"
+import { api, type CreationType, type GenerationRequest, type ModelItem } from "../lib/api"
+import { applyCreationType, creationTypeLabels } from "../lib/modelCapabilities"
 import { parseWorkflowFile } from "../lib/workflow"
 import FieldLabel from "./FieldLabel.vue"
 
 const props = defineProps<{
   form: GenerationRequest
-  checkpoints: string[]
+  models: ModelItem[]
   motionModels?: string[]
   loraModels?: string[]
   controlnetModels?: string[]
@@ -44,6 +47,39 @@ const pendingFiles = ref<Record<string, File>>({})
 const referenceImageFiles = ref<UploadFile[]>([])
 const controlnetFiles = ref<UploadFile[]>([])
 const referenceVideoFiles = ref<UploadFile[]>([])
+
+const creationTypeOptions = computed(() =>
+  props.mode === "image"
+    ? [
+        { label: "文生图", value: "text_to_image" },
+        { label: "图生图", value: "image_to_image" },
+      ]
+    : [
+        { label: "文生视频", value: "text_to_video" },
+        { label: "图生视频", value: "image_to_video" },
+        { label: "视频生视频", value: "video_to_video" },
+      ],
+)
+const selectedModel = computed(() =>
+  props.models.find(item => item.filename === props.form.checkpoint),
+)
+const selectedModelComponents = computed(() => {
+  const components = selectedModel.value?.capability_profile.required_components[
+    props.form.creation_type
+  ] ?? []
+  return components.length ? components.join("、") : "无额外组件"
+})
+const selectedRecommendedParams = computed(() =>
+  Object.entries(
+    selectedModel.value?.capability_profile.recommended_params[props.form.creation_type] ?? {},
+  )
+    .map(([key, value]) => `${key}：${value}`)
+    .join("，"),
+)
+
+function changeCreationType(value: string | number) {
+  applyCreationType(props.form, value as CreationType, props.models)
+}
 
 const samplerOptions = [
   "euler",
@@ -256,12 +292,6 @@ function toggleHires(enabled: boolean) {
     : null
 }
 
-const videoModeOptions = [
-  { label: "文生视频", value: "t2v" },
-  { label: "图生视频", value: "i2v" },
-  { label: "视频生视频", value: "v2v" },
-]
-
 function selectReferenceVideo(file: File) {
   pendingFiles.value["reference_video"] = file
   props.form.reference_video = file.name
@@ -299,14 +329,19 @@ function clearReferenceVideo() {
       />
     </template>
     <Form layout="vertical">
-      <Form.Item v-if="mode === 'video'" class="step-field">
+      <Form.Item class="step-field">
         <template #label>
           <FieldLabel
-            label="生成方式"
-            help="文生视频使用 AnimateDiff 运动模型；图生视频以参考图为首帧生成视频（Wan）；视频生视频以参考视频首尾帧约束运动（Wan）。"
+            label="创作任务"
+            :help="mode === 'image' ? '先选择文生图或图生图，模型列表会自动筛选。' : '先选择文生视频、图生视频或视频生视频，模型列表会自动筛选。'"
           />
         </template>
-        <Segmented v-model:value="form.video_mode" :options="videoModeOptions" />
+        <Segmented
+          data-testid="creation-type-selector"
+          :value="form.creation_type"
+          :options="creationTypeOptions"
+          @change="changeCreationType"
+        />
       </Form.Item>
 
       <div class="step-title">
@@ -327,11 +362,30 @@ function clearReferenceVideo() {
             help="选择生成所用的 checkpoint 模型。加载时 ComfyUI 按文件名从自身模型目录读取：本地模式读取本机 ComfyUI 目录中的文件；远程模式只能加载远程 ComfyUI 上已存在的模型，本机目录文件不会被远程加载。"
           />
         </template>
-        <Select v-model:value="form.checkpoint" placeholder="必填：请选择 checkpoint" :not-found-content="'暂无可用模型'">
-          <Select.Option v-for="item in checkpoints" :key="item" :value="item" :title="item">{{ item }}</Select.Option>
+        <Select v-model:value="form.checkpoint" placeholder="必填：请选择兼容模型" :not-found-content="'当前任务暂无兼容模型'">
+          <Select.Option v-for="item in models" :key="item.id" :value="item.filename" :title="item.filename">
+            {{ item.name }}（{{ item.filename }}）
+          </Select.Option>
         </Select>
       </Form.Item>
-      <Space v-if="mode === 'video' && form.video_mode === 't2v'" class="form-row" align="start">
+      <Alert
+        v-if="selectedModel"
+        class="step-field"
+        type="info"
+        show-icon
+        :message="selectedModel.capability_profile.description_zh"
+      >
+        <template #description>
+          <Space wrap>
+            <Tag v-for="capability in selectedModel.capability_profile.capabilities" :key="capability">
+              {{ creationTypeLabels[capability] }}
+            </Tag>
+            <span>必需组件：{{ selectedModelComponents }}</span>
+            <span v-if="selectedRecommendedParams">推荐参数：{{ selectedRecommendedParams }}</span>
+          </Space>
+        </template>
+      </Alert>
+      <Space v-if="form.creation_type === 'text_to_video'" class="form-row" align="start">
         <Form.Item class="form-main" required>
           <template #label>
             <FieldLabel label="运动模型" help="视频生成所需的 AnimateDiff 运动模型，需与 checkpoint 匹配使用。" />
@@ -350,16 +404,16 @@ function clearReferenceVideo() {
         </Form.Item>
       </Space>
 
-      <div v-if="mode === 'image' || (mode === 'video' && form.video_mode === 'i2v')" class="step-title">
+      <div v-if="form.creation_type === 'image_to_image' || form.creation_type === 'image_to_video'" class="step-title">
         <span class="step-badge">ref</span>
         <span class="step-name">参考图</span>
-        <span class="step-node">{{ mode === "image" ? "LoadImage + VAEEncode" : "WanImageToVideo 首帧" }}</span>
+        <span class="step-node">{{ form.creation_type === "image_to_image" ? "LoadImage + VAEEncode" : "WanImageToVideo 首帧" }}</span>
       </div>
-      <Form.Item v-if="mode === 'image' || (mode === 'video' && form.video_mode === 'i2v')" class="step-field">
+      <Form.Item v-if="form.creation_type === 'image_to_image' || form.creation_type === 'image_to_video'" class="step-field" required>
         <template #label>
           <FieldLabel
-            :label="mode === 'image' ? '参考图重绘' : '参考图（视频首帧）'"
-            :help="mode === 'image'
+            label="参考图（必填）"
+            :help="form.creation_type === 'image_to_image'
               ? '上传参考图后按图重绘：参考图作为采样起点，重绘幅度（denoise）越低越接近原图；输出尺寸跟随参考图，画布宽高将被忽略。'
               : '上传一张图作为视频首帧，模型将推断后续运动（Wan I2V）。'"
           />
@@ -390,12 +444,12 @@ function clearReferenceVideo() {
         </Space>
       </Form.Item>
 
-      <div v-if="mode === 'video' && form.video_mode === 'v2v'" class="step-title">
+      <div v-if="form.creation_type === 'video_to_video'" class="step-title">
         <span class="step-badge">refv</span>
         <span class="step-name">参考视频</span>
         <span class="step-node">LoadVideo 首尾帧</span>
       </div>
-      <Form.Item v-if="mode === 'video' && form.video_mode === 'v2v'" class="step-field">
+      <Form.Item v-if="form.creation_type === 'video_to_video'" class="step-field" required>
         <template #label>
           <FieldLabel
             label="参考视频"
@@ -685,7 +739,7 @@ function clearReferenceVideo() {
           <template #label>
             <FieldLabel label="无损" help="开启后不做有损压缩，画质无损但文件体积明显增大。" />
           </template>
-          <a-switch v-model:checked="form.lossless" />
+          <Switch v-model:checked="form.lossless" />
         </Form.Item>
         <Form.Item>
           <template #label>

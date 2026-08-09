@@ -12,10 +12,32 @@ export type ConnectionStatus = {
   message: string
 }
 
+export type CreationType =
+  | "text_to_image"
+  | "image_to_image"
+  | "text_to_video"
+  | "image_to_video"
+  | "video_to_video"
+
+export type RequiredInput = "reference_image" | "reference_video"
+
+export type ModelCapabilityProfile = {
+  capabilities: CreationType[]
+  required_inputs: Partial<Record<CreationType, RequiredInput[]>>
+  required_components: Partial<Record<CreationType, string[]>>
+  workflow_family: Partial<Record<CreationType, string>>
+  description_zh: string
+  recommended_params: Partial<Record<CreationType, Record<string, string | number | boolean>>>
+  confirmed: boolean
+}
+
+export type ModelCapabilityUpdate = ModelCapabilityProfile & { filename: string }
+
 export type GenerationRequest = {
   prompt: string
   negative_prompt: string
   checkpoint: string
+  creation_type: CreationType
   media_type: "image" | "video"
   video_mode: "t2v" | "i2v" | "v2v"
   vae: string
@@ -87,6 +109,7 @@ export type ModelItem = {
   preview_url: string | null
   size_label: string | null
   reference_url: string | null
+  capability_profile: ModelCapabilityProfile
 }
 
 export type ModelCatalogResponse = {
@@ -150,6 +173,11 @@ export const api = {
   deleteHistory: (id: string) =>
     request<{ ok: boolean }>(`/history/${id}`, { method: "DELETE" }),
   models: () => request<ModelCatalogResponse>("/models/catalog"),
+  saveModelCapabilities: (data: ModelCapabilityUpdate) =>
+    request<ModelCapabilityProfile>("/models/capabilities", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   managerStatus: () => request<ManagerQueueStatus>("/models/manager/status"),
   uploadFile: (file: File, kind: "image" | "video") => {
     const form = new FormData()

@@ -5,6 +5,7 @@ export function createDefaultGenerationRequest(): GenerationRequest {
     prompt: "",
     negative_prompt: "",
     checkpoint: "",
+    creation_type: "text_to_image",
     media_type: "image",
     video_mode: "t2v",
     vae: "",
@@ -21,8 +22,8 @@ export function createDefaultGenerationRequest(): GenerationRequest {
     lossless: false,
     method: "default",
     output_prefix: "AIArtAgent",
-    width: 512,
-    height: 512,
+    width: 1024,
+    height: 1024,
     steps: 25,
     cfg: 7,
     denoise: 1,
@@ -39,17 +40,12 @@ export function canSubmitGeneration(
   busy: boolean,
 ): boolean {
   const motionOk =
-    request.media_type !== "video" ||
-    request.video_mode !== "t2v" ||
-    Boolean(request.motion_model?.trim())
+    request.creation_type !== "text_to_video" || Boolean(request.motion_model?.trim())
   const mediaOk =
-    request.media_type !== "video" ||
-    request.video_mode !== "i2v" ||
+    !["image_to_image", "image_to_video"].includes(request.creation_type) ||
     Boolean(request.reference_image?.trim())
   const videoOk =
-    request.media_type !== "video" ||
-    request.video_mode !== "v2v" ||
-    Boolean(request.reference_video?.trim())
+    request.creation_type !== "video_to_video" || Boolean(request.reference_video?.trim())
   return (
     connected &&
     Boolean(request.prompt.trim()) &&
@@ -71,11 +67,11 @@ export function getGenerationBlockedReason(
   if (busy) return "正在生成，请稍候"
   if (!connected) return "请先在连接设置中完成 ComfyUI 连接"
   if (!request.prompt.trim()) return "请输入画面描述"
-  if (request.media_type === "video" && request.video_mode === "t2v" && !request.motion_model?.trim())
+  if (request.creation_type === "text_to_video" && !request.motion_model?.trim())
     return "请选择运动模型"
-  if (request.media_type === "video" && request.video_mode === "i2v" && !request.reference_image?.trim())
+  if (["image_to_image", "image_to_video"].includes(request.creation_type) && !request.reference_image?.trim())
     return "请上传参考图"
-  if (request.media_type === "video" && request.video_mode === "v2v" && !request.reference_video?.trim())
+  if (request.creation_type === "video_to_video" && !request.reference_video?.trim())
     return "请上传参考视频"
   if (!checkpoints.length) return "当前没有可用模型，请检查 ComfyUI 模型目录"
   if (!request.checkpoint) return "请选择模型"

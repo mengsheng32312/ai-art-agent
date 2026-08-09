@@ -20,6 +20,7 @@ import {
   resolveSaveLocation,
   type Config,
   type GenerationTask,
+  type ModelCapabilityUpdate,
   type ModelCatalogResponse,
   type ModelItem,
 } from "./lib/api"
@@ -29,6 +30,7 @@ import {
   getGenerationBlockedReason,
   upsertTask,
 } from "./stores/generation"
+import { applyCreationType, filterModelsForCreationType } from "./lib/modelCapabilities"
 import type { Page } from "./types"
 import GenerateView from "./views/GenerateView.vue"
 import VideoView from "./views/VideoView.vue"
@@ -70,13 +72,6 @@ const submissionAttempted = ref(false)
 const startupError = ref("")
 const localApiUrl = "http://127.0.0.1:8188"
 
-// 图片生成只允许图片用途的 checkpoint，视频模型（如 Wan）不会出现在图片页。
-const imageCheckpoints = computed(() =>
-  modelCatalog.value.remote_models
-    .filter(item => item.kind === "checkpoint" && item.usage === "image")
-    .map(item => item.filename),
-)
-
 const pageMeta: Record<Page, { label: string; hint: string }> = {
   generate: { label: "图片生成", hint: "参数与预览" },
   video: { label: "视频生成", hint: "AnimateDiff" },
@@ -94,18 +89,33 @@ const config = reactive<Config>({
 })
 
 const form = reactive(createDefaultGenerationRequest())
+const availableGenerationModels = computed(() =>
+  modelCatalog.value.remote_models.filter(item => item.kind === "checkpoint"),
+)
+const imageModels = computed(() =>
+  filterModelsForCreationType(availableGenerationModels.value, form.creation_type),
+)
 const canGenerate = computed(() => canSubmitGeneration(form, connected.value, busy.value))
 const generationBlockedReason = computed(() =>
-  getGenerationBlockedReason(form, connected.value, busy.value, imageCheckpoints.value),
+  getGenerationBlockedReason(
+    form,
+    connected.value,
+    busy.value,
+    imageModels.value.map(item => item.filename),
+  ),
 )
 
 const videoForm = reactive({
   ...createDefaultGenerationRequest(),
+  creation_type: "text_to_video" as const,
   media_type: "video" as const,
   width: 512,
   height: 512,
   frames: 16,
 })
+const videoModels = computed(() =>
+  filterModelsForCreationType(availableGenerationModels.value, videoForm.creation_type),
+)
 const videoTask = ref<GenerationTask | null>(null)
 const videoBusy = ref(false)
 const videoNotice = ref("")
@@ -119,7 +129,7 @@ const videoBlockedReason = computed(() =>
     videoForm,
     connected.value,
     videoBusy.value,
-    checkpoints.value,
+    videoModels.value.map(item => item.filename),
   ),
 )
 
@@ -178,8 +188,11 @@ async function refreshModels() {
     checkpoints.value = catalog.remote_models
       .filter(item => item.kind === "checkpoint")
       .map(item => item.filename)
-    if (!form.checkpoint && imageCheckpoints.value.length) {
-      form.checkpoint = imageCheckpoints.value[0]
+    if (!form.checkpoint && imageModels.value.length) {
+      form.checkpoint = imageModels.value[0].filename
+    }
+    if (!videoForm.checkpoint && videoModels.value.length) {
+      videoForm.checkpoint = videoModels.value[0].filename
     }
   } catch (error) {
     message.error(error instanceof Error ? error.message : "模型目录加载失败")
@@ -189,25 +202,67 @@ async function refreshModels() {
   }
 }
 
+async function saveModelCapabilities(profile: ModelCapabilityUpdate) {
+  try {
+    await api.saveModelCapabilities(profile)
+    await refreshModels()
+    message.success("模型能力设置已保存")
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "模型能力设置保存失败")
+  }
+}
+
 watch(page, value => {
   if (value === "models" && connected.value && !catalogLoaded.value) {
     void refreshModels()
   }
 })
 
-watch(page, value => {
-  if (
-    value === "generate" &&
-    form.checkpoint &&
-    !imageCheckpoints.value.includes(form.checkpoint)
-  ) {
-    form.checkpoint = imageCheckpoints.value[0] ?? ""
-  }
-})
+watch(
+  () => form.creation_type,
+  creationType => {
+    applyCreationType(form, creationType, availableGenerationModels.value)
+    if (!form.checkpoint && imageModels.value.length) {
+      form.checkpoint = imageModels.value[0].filename
+    }
+  },
+)
+
+watch(
+  () => videoForm.creation_type,
+  creationType => {
+    applyCreationType(videoForm, creationType, availableGenerationModels.value)
+    if (!videoForm.checkpoint && videoModels.value.length) {
+      videoForm.checkpoint = videoModels.value[0].filename
+    }
+  },
+)
 
 function selectModel(model: ModelItem) {
   if (model.source === "local" && config.mode === "remote") {
     message.info("本地目录模型不能直接用于远程生成，请先安装到远程 ComfyUI")
+    return
+  }
+  if (model.kind === "checkpoint") {
+    const profile = model.capability_profile
+    if (!profile.confirmed || !profile.capabilities.length) {
+      message.warning("该模型能力尚未确认，请先完成能力设置")
+      return
+    }
+    const currentType = page.value === "video" ? videoForm.creation_type : form.creation_type
+    const creationType = profile.capabilities.includes(currentType)
+      ? currentType
+      : profile.capabilities[0]
+    if (creationType === "text_to_image" || creationType === "image_to_image") {
+      applyCreationType(form, creationType, availableGenerationModels.value)
+      form.checkpoint = model.filename
+      page.value = "generate"
+    } else {
+      applyCreationType(videoForm, creationType, availableGenerationModels.value)
+      videoForm.checkpoint = model.filename
+      page.value = "video"
+    }
+    message.success(`已选择模型：${model.name}`)
     return
   }
   if (model.usage === "video") {
@@ -233,13 +288,7 @@ function selectModel(model: ModelItem) {
     message.success(`已选择 VAE 模型：${model.name}`)
     return
   }
-  if (model.kind !== "checkpoint") {
-    message.info("当前只支持选择 checkpoint 用于图片生成")
-    return
-  }
-  form.checkpoint = model.filename
-  page.value = "generate"
-  message.success(`已选择模型：${model.name}`)
+  message.info("该模型类型暂不能直接用于生成")
 }
 
 async function ensureLocalComfyuiReady() {
@@ -331,6 +380,8 @@ async function refreshConnection() {
       connectionMessage.value = ready ? "连接正常" : "ComfyUI 启动超时，请稍后重试"
       if (ready) {
         await api.saveConfig(config)
+        catalogLoaded.value = false
+        await refreshModels()
         message.success("测试连接成功，设置已保存")
         void loadVideoModels()
         void loadVaeModels()
@@ -346,10 +397,12 @@ async function refreshConnection() {
       connectionMessage.value = state.message
       if (connected.value) {
         checkpoints.value = await api.checkpoints()
-        if (!form.checkpoint && imageCheckpoints.value.length) {
-          form.checkpoint = imageCheckpoints.value[0]
+        if (!form.checkpoint && imageModels.value.length) {
+          form.checkpoint = imageModels.value[0].filename
         }
         await api.saveConfig(config)
+        catalogLoaded.value = false
+        await refreshModels()
         message.success("测试连接成功，设置已保存")
         void loadVideoModels()
         void loadVaeModels()
@@ -472,12 +525,17 @@ async function loadControlnetModels() {
 }
 
 function redrawTask(task: GenerationTask) {
-  const target = task.request.media_type === "video" ? videoForm : form
+  const isVideo = task.request.creation_type.endsWith("_video")
+  const target = isVideo ? videoForm : form
   Object.assign(target, {
     prompt: task.request.prompt,
     negative_prompt: task.request.negative_prompt,
     checkpoint: task.request.checkpoint,
+    creation_type: task.request.creation_type,
     media_type: task.request.media_type,
+    video_mode: task.request.video_mode,
+    reference_image: task.request.reference_image,
+    reference_video: task.request.reference_video,
     frames: task.request.frames,
     width: task.request.width,
     height: task.request.height,
@@ -490,7 +548,7 @@ function redrawTask(task: GenerationTask) {
   })
   submissionAttempted.value = false
   videoSubmissionAttempted.value = false
-  page.value = task.request.media_type === "video" ? "video" : "generate"
+  page.value = isVideo ? "video" : "generate"
 }
 
 async function deleteHistoryItem(id: string) {
@@ -631,7 +689,7 @@ onMounted(async () => {
           <GenerateView
             v-if="page === 'generate'"
             :form="form"
-            :checkpoints="imageCheckpoints"
+            :models="imageModels"
             :lora-models="loraModels"
             :controlnet-models="controlnetModels"
             :vae-models="vaeModels"
@@ -648,7 +706,7 @@ onMounted(async () => {
           <VideoView
             v-else-if="page === 'video'"
             :form="videoForm"
-            :checkpoints="checkpoints"
+            :models="videoModels"
             :lora-models="loraModels"
             :vae-models="vaeModels"
             :current-task="videoTask"
@@ -676,6 +734,7 @@ onMounted(async () => {
             @select="selectModel"
             @download="downloadModel"
             @enable-manager="enableManager"
+            @save-capabilities="saveModelCapabilities"
           />
           <DownloadsView
             v-else-if="page === 'downloads'"

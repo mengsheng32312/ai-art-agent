@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote
 
+from .capabilities import CapabilityStore, apply_model_capability
 from .comfy.client import ComfyClient
 from .schemas import ModelCatalogResponse, ModelItem, ModelKind
 from .settings import AppConfig
@@ -15,12 +16,13 @@ MODEL_DIRS: dict[ModelKind, Path] = {
     "vae": Path("models") / "vae",
 }
 
-MODEL_NODES: dict[ModelKind, tuple[str, str]] = {
-    "checkpoint": ("CheckpointLoaderSimple", "ckpt_name"),
-    "lora": ("LoraLoader", "lora_name"),
-    "vae": ("VAELoader", "vae_name"),
-    "controlnet": ("ControlNetLoader", "control_net_name"),
-}
+MODEL_NODES: tuple[tuple[ModelKind, str, str], ...] = (
+    ("checkpoint", "CheckpointLoaderSimple", "ckpt_name"),
+    ("checkpoint", "UNETLoader", "unet_name"),
+    ("lora", "LoraLoader", "lora_name"),
+    ("vae", "VAELoader", "vae_name"),
+    ("controlnet", "ControlNetLoader", "control_net_name"),
+)
 
 MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
 PREVIEW_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
@@ -160,7 +162,8 @@ def scan_local_models(config: AppConfig) -> list[ModelItem]:
 async def list_comfy_models(client: ComfyClient, local_models: list[ModelItem]) -> list[ModelItem]:
     local_by_filename = {item.filename: item for item in local_models}
     items: list[ModelItem] = []
-    for kind, (node_name, input_name) in MODEL_NODES.items():
+    seen: set[tuple[ModelKind, str]] = set()
+    for kind, node_name, input_name in MODEL_NODES:
         try:
             data = await client.object_info(node_name)
             names = data[node_name]["input"]["required"][input_name][0]
@@ -168,6 +171,10 @@ async def list_comfy_models(client: ComfyClient, local_models: list[ModelItem]) 
             continue
 
         for filename in names:
+            key = (kind, filename)
+            if key in seen:
+                continue
+            seen.add(key)
             local = local_by_filename.get(filename)
             items.append(
                 ModelItem(
@@ -243,7 +250,11 @@ def normalize_manager_model(item: dict[str, Any], installed_files: set[str]) -> 
     )
 
 
-async def build_model_catalog(config: AppConfig, client: ComfyClient) -> ModelCatalogResponse:
+async def build_model_catalog(
+    config: AppConfig,
+    client: ComfyClient,
+    capability_store: CapabilityStore | None = None,
+) -> ModelCatalogResponse:
     local_files = scan_local_models(config)
     installed_files = {item.filename for item in local_files}
     connected = False
@@ -291,9 +302,15 @@ async def build_model_catalog(config: AppConfig, client: ComfyClient) -> ModelCa
         connected=connected,
         manager_available=manager_available,
         message=message,
-        remote_models=remote_models,
-        local_models=local_files,
-        online_models=online_models,
+        remote_models=[
+            apply_model_capability(item, capability_store) for item in remote_models
+        ],
+        local_models=[
+            apply_model_capability(item, capability_store) for item in local_files
+        ],
+        online_models=[
+            apply_model_capability(item, capability_store) for item in online_models
+        ],
     )
 
 

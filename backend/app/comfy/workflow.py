@@ -128,6 +128,7 @@ def _apply_hires_fix(
     positive_ref: list,
     negative_ref: list,
     node_start: int = 30,
+    uses_reference: bool = False,
 ) -> None:
     """第一次采样后用 LatentUpscale 放大并二次精修，VAEDecode 改接第二次输出。"""
     if request.hires is None:
@@ -135,7 +136,7 @@ def _apply_hires_fix(
     scale = max(1.0, request.hires.scale)
     base_width = max(64, (int(request.width / scale) // 8) * 8)
     base_height = max(64, (int(request.height / scale) // 8) * 8)
-    if not request.reference_image:
+    if not uses_reference:
         workflow["4"]["inputs"].update(
             width=base_width,
             height=base_height,
@@ -304,8 +305,10 @@ def build_wan_video_workflow(
     return workflow
 
 
-def build_text_to_image_workflow(
-    request: GenerationRequest, output_prefix: str = "AIArtAgent"
+def _build_standard_image_workflow(
+    request: GenerationRequest,
+    output_prefix: str,
+    uses_reference: bool,
 ) -> dict:
     workflow = json.loads(template_path().read_text(encoding="utf-8"))
     workflow = deepcopy(workflow)
@@ -336,9 +339,16 @@ def build_text_to_image_workflow(
         workflow["5"]["inputs"]["negative"] = control_refs[1]
     positive_ref = control_refs[0] if control_refs else ["2", 0]
     negative_ref = control_refs[1] if control_refs else ["3", 0]
-    _apply_hires_fix(workflow, request, model_ref, positive_ref, negative_ref)
+    _apply_hires_fix(
+        workflow,
+        request,
+        model_ref,
+        positive_ref,
+        negative_ref,
+        uses_reference=uses_reference,
+    )
     workflow["7"]["inputs"]["filename_prefix"] = output_prefix or request.output_prefix
-    if request.reference_image:
+    if uses_reference:
         workflow["9"] = {
             "class_type": "LoadImage",
             "inputs": {"image": request.reference_image},
@@ -357,11 +367,23 @@ def build_text_to_image_workflow(
     return workflow
 
 
+def build_text_to_image_workflow(
+    request: GenerationRequest, output_prefix: str = "AIArtAgent"
+) -> dict:
+    return _build_standard_image_workflow(request, output_prefix, uses_reference=False)
+
+
+def build_image_to_image_workflow(
+    request: GenerationRequest, output_prefix: str = "AIArtAgent"
+) -> dict:
+    if not request.reference_image.strip():
+        raise ValueError("图生图需要参考图片")
+    return _build_standard_image_workflow(request, output_prefix, uses_reference=True)
+
+
 def build_text_to_video_workflow(
     request: GenerationRequest, output_prefix: str = "AIArtAgent"
 ) -> dict:
-    if request.video_mode in ("i2v", "v2v"):
-        return build_wan_video_workflow(request, output_prefix)
     workflow = json.loads(video_template_path().read_text(encoding="utf-8"))
     workflow = deepcopy(workflow)
     workflow["1"]["inputs"]["ckpt_name"] = request.checkpoint
@@ -402,3 +424,36 @@ def build_text_to_video_workflow(
         }
         workflow["7"]["inputs"]["vae"] = ["9", 0]
     return workflow
+
+
+def build_image_to_video_workflow(
+    request: GenerationRequest, output_prefix: str = "AIArtAgent"
+) -> dict:
+    if not request.reference_image.strip():
+        raise ValueError("图生视频需要参考图片")
+    return build_wan_video_workflow(
+        request.model_copy(update={"video_mode": "i2v"}), output_prefix
+    )
+
+
+def build_video_to_video_workflow(
+    request: GenerationRequest, output_prefix: str = "AIArtAgent"
+) -> dict:
+    if not request.reference_video.strip():
+        raise ValueError("视频生视频需要参考视频")
+    return build_wan_video_workflow(
+        request.model_copy(update={"video_mode": "v2v"}), output_prefix
+    )
+
+
+def build_workflow(
+    request: GenerationRequest, output_prefix: str = "AIArtAgent"
+) -> dict:
+    builders = {
+        "text_to_image": build_text_to_image_workflow,
+        "image_to_image": build_image_to_image_workflow,
+        "text_to_video": build_text_to_video_workflow,
+        "image_to_video": build_image_to_video_workflow,
+        "video_to_video": build_video_to_video_workflow,
+    }
+    return builders[request.creation_type](request, output_prefix)

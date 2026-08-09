@@ -1,7 +1,8 @@
-import type { GenerationRequest } from "./api"
+import type { CreationType, GenerationRequest } from "./api"
 
 export type ParsedWorkflow = {
   mediaType: "image" | "video"
+  creationType: CreationType
   fields: Partial<GenerationRequest>
 }
 
@@ -80,6 +81,9 @@ export function parseWorkflowFile(data: unknown): ParsedWorkflow {
 
   const sampler = nodeInputs(byType.get("KSampler")?.[0] ?? byType.get("ADE_AnimateDiffSampler")?.[0])
   const checkpoint = nodeInputs(byType.get("CheckpointLoaderSimple")?.[0])
+  const unet = nodeInputs(byType.get("UNETLoader")?.[0])
+  const loadImage = nodeInputs(byType.get("LoadImage")?.[0])
+  const loadVideo = nodeInputs(byType.get("LoadVideo")?.[0])
   const latent = nodeInputs(byType.get("EmptyLatentImage")?.[0])
   const loader = nodeInputs(byType.get("ADE_AnimateDiffLoaderGen1")?.[0])
   const saveImage = nodeInputs(byType.get("SaveImage")?.[0])
@@ -98,6 +102,9 @@ export function parseWorkflowFile(data: unknown): ParsedWorkflow {
   if (negativeText !== undefined) fields.negative_prompt = negativeText
 
   take(fields, checkpoint, "ckpt_name", "checkpoint")
+  take(fields, unet, "unet_name", "checkpoint")
+  take(fields, loadImage, "image", "reference_image")
+  take(fields, loadVideo, "video", "reference_video")
   take(fields, latent, "width", "width", Number)
   take(fields, latent, "height", "height", Number)
   take(fields, sampler, "seed", "seed", Number)
@@ -119,15 +126,29 @@ export function parseWorkflowFile(data: unknown): ParsedWorkflow {
   const scheduler = sampler.scheduler
   if (typeof scheduler === "string" && scheduler) fields.scheduler = scheduler
 
-  const mediaType =
-    byType.has("SaveAnimatedWEBP") || byType.has("ADE_AnimateDiffLoaderGen1")
-      ? "video"
-      : "image"
+  const creationType: CreationType = byType.has("WanVideoToVideo")
+    ? "video_to_video"
+    : byType.has("WanImageToVideo")
+      ? "image_to_video"
+      : byType.has("ADE_AnimateDiffLoaderGen1")
+        ? "text_to_video"
+        : byType.has("VAEEncode") && byType.has("LoadImage")
+          ? "image_to_image"
+          : "text_to_image"
+  const mediaType = creationType.endsWith("_video") ? "video" : "image"
+  fields.creation_type = creationType
+  fields.media_type = mediaType
+  const videoModes: Partial<Record<CreationType, GenerationRequest["video_mode"]>> = {
+    text_to_video: "t2v",
+    image_to_video: "i2v",
+    video_to_video: "v2v",
+  }
+  fields.video_mode = videoModes[creationType] ?? "t2v"
   const latentCount = latent.batch_size
   if (latentCount !== undefined && latentCount !== null && latentCount !== "") {
     if (mediaType === "video") fields.frames = Number(latentCount)
     else fields.batch_size = Number(latentCount)
   }
 
-  return { mediaType, fields }
+  return { mediaType, creationType, fields }
 }

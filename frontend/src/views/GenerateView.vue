@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Col, Row } from "ant-design-vue"
-import type { GenerationRequest, GenerationTask } from "../lib/api"
+import type { GenerationRequest, GenerationTask, ModelItem } from "../lib/api"
 import GenerationForm from "../components/GenerationForm.vue"
 import GenerationPreview from "../components/GenerationPreview.vue"
 
 defineProps<{
   form: GenerationRequest
-  checkpoints: string[]
+  models: ModelItem[]
   loraModels: string[]
   controlnetModels: string[]
   vaeModels: string[]
@@ -28,7 +28,7 @@ const emit = defineEmits<{ generate: []; goModels: [] }>()
       <Col :xs="24" :xl="11">
         <GenerationForm
           :form="form"
-          :checkpoints="checkpoints"
+          :models="models"
           :lora-models="loraModels"
           :controlnet-models="controlnetModels"
           :vae-models="vaeModels"

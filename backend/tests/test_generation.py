@@ -4,6 +4,9 @@ from app.main import create_app
 
 
 class FakeComfyClient:
+    def __init__(self) -> None:
+        self.queued_workflow: dict | None = None
+
     async def check_status(self) -> bool:
         return True
 
@@ -11,6 +14,7 @@ class FakeComfyClient:
         return ["model.safetensors"]
 
     async def queue_prompt(self, workflow, client_id: str) -> str:
+        self.queued_workflow = workflow
         return "prompt-1"
 
     async def history(self, prompt_id: str) -> dict:
@@ -72,6 +76,65 @@ def test_generation_is_queued_and_saved(tmp_path) -> None:
     assert completed["outputs"][0] == (
         "http://comfy/view?filename=fox.png&subfolder=&type=output"
     )
+
+
+def test_generation_routes_using_creation_type_instead_of_legacy_media_fields(
+    tmp_path,
+) -> None:
+    comfy = FakeComfyClient()
+    client = TestClient(create_app(data_dir=tmp_path, comfy_factory=lambda _: comfy))
+
+    response = client.post(
+        "/api/generations",
+        json={
+            "prompt": "fox",
+            "checkpoint": "model.safetensors",
+            "creation_type": "image_to_image",
+            "media_type": "video",
+            "video_mode": "v2v",
+            "reference_image": "ref.png",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["request"]["creation_type"] == "image_to_image"
+    assert comfy.queued_workflow is not None
+    assert comfy.queued_workflow["9"]["class_type"] == "LoadImage"
+
+
+def test_generation_rejects_model_without_confirmed_capability(tmp_path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path, comfy_factory=lambda _: FakeComfyClient()))
+
+    response = client.post(
+        "/api/generations",
+        json={
+            "prompt": "fox",
+            "checkpoint": "ltx-2-dev.safetensors",
+            "creation_type": "text_to_video",
+            "motion_model": "mm.ckpt",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "暂未确认该模型的生成能力，请先在模型管理中设置用途。"
+    }
+
+
+def test_generation_rejects_missing_required_component(tmp_path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path, comfy_factory=lambda _: FakeComfyClient()))
+
+    response = client.post(
+        "/api/generations",
+        json={
+            "prompt": "fox",
+            "checkpoint": "model.safetensors",
+            "creation_type": "text_to_video",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "文生视频缺少必需组件：运动模型"}
 
 
 def test_generation_becomes_running_when_comfy_has_started(tmp_path) -> None:
