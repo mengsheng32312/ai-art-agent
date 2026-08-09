@@ -33,6 +33,7 @@ const emit = defineEmits<{
   select: [model: ModelItem]
   download: [id: string, destination: "remote" | "local"]
   enableManager: []
+  openManager: []
   saveCapabilities: [profile: ModelCapabilityUpdate]
 }>()
 
@@ -237,10 +238,30 @@ const availableModelTitle = computed(() =>
 
   <Card :bordered="false" class="model-toolbar">
     <div class="model-toolbar-content">
-      <Button :loading="loading" :disabled="loading" @click="emit('refresh')">
-        <template #icon><ReloadOutlined /></template>
-        刷新模型
-      </Button>
+      <Space :size="8" wrap>
+        <Button :loading="loading" :disabled="loading" @click="emit('refresh')">
+          <template #icon><ReloadOutlined /></template>
+          刷新模型
+        </Button>
+        <Tag :color="catalog.manager_available ? 'success' : 'default'">
+          {{ catalog.manager_available ? 'Manager 已启用' : 'Manager 未启用' }}
+        </Tag>
+        <Button
+          v-if="connected && catalog.manager_available"
+          type="primary"
+          @click="emit('openManager')"
+        >
+          打开 ComfyUI 模型库
+        </Button>
+        <Button
+          v-else-if="connected && config.mode === 'local'"
+          type="primary"
+          :loading="enablingManager"
+          @click="emit('enableManager')"
+        >
+          一键启用 Manager
+        </Button>
+      </Space>
       <div class="model-toolbar-status">
         <span v-if="connected" class="field-help">{{ catalog.message }}</span>
         <div class="model-toolbar-stats">
@@ -424,13 +445,7 @@ const availableModelTitle = computed(() =>
         show-icon
         message="在线模型库不可用"
         :description="`当前 ComfyUI 未安装或未启用 ComfyUI Manager，仅展示${availableModelTitle}和本地目录模型。启用后即可浏览在线模型库。`"
-      >
-        <template v-if="config.mode === 'local'" #action>
-          <Button type="primary" :loading="enablingManager" @click="emit('enableManager')">
-            一键启用 Manager
-          </Button>
-        </template>
-      </Alert>
+      />
       <template v-else>
         <Alert
           class="model-section"

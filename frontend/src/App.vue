@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue"
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue"
 import { Button, ConfigProvider, Layout, message, Space, Tag } from "ant-design-vue"
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons-vue"
 import AppSidebar from "./components/AppSidebar.vue"
@@ -7,6 +7,7 @@ import { antTheme } from "./styles/theme"
 import {
   isDesktop,
   enableComfyuiManager,
+  openComfyuiManager,
   openInExplorer,
   prepareDesktopAgent,
   recordDesktopStartupError,
@@ -488,6 +489,28 @@ async function enableManager() {
   }
 }
 
+async function openManager() {
+  if (!connected.value) {
+    message.warning("请先连接 ComfyUI")
+    return
+  }
+  if (!modelCatalog.value.manager_available) {
+    message.warning("请先启用 ComfyUI Manager")
+    return
+  }
+  try {
+    await openComfyuiManager(config.api_url)
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "打开 ComfyUI 模型库失败")
+  }
+}
+
+function refreshModelsAfterManager() {
+  if (page.value === "models" && connected.value && modelCatalog.value.manager_available) {
+    void refreshModels()
+  }
+}
+
 async function loadVideoModels() {
   try {
     const models = await api.videoModels()
@@ -640,6 +663,7 @@ async function generateVideo() {
 }
 
 onMounted(async () => {
+  window.addEventListener("focus", refreshModelsAfterManager)
   startupError.value = ""
   try {
     await prepareDesktopAgent().catch(recordDesktopStartupError)
@@ -654,6 +678,10 @@ onMounted(async () => {
     notice.value = `本地 Agent 不可用：${startupError.value}`
     noticeType.value = "error"
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener("focus", refreshModelsAfterManager)
 })
 </script>
 
@@ -734,6 +762,7 @@ onMounted(async () => {
             @select="selectModel"
             @download="downloadModel"
             @enable-manager="enableManager"
+            @open-manager="openManager"
             @save-capabilities="saveModelCapabilities"
           />
           <DownloadsView
