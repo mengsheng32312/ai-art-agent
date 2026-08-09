@@ -114,9 +114,7 @@ test("新手选模按内容过滤模型并清空不匹配选择", async () => {
   await wrapper.vm.$nextTick()
 
   const modelSelector = wrapper.find('[data-testid="model-selector"]').findComponent(Select)
-  const modelValues = modelSelector.props("options").map(
-    (option: { value: string }) => option.value,
-  )
+  const modelValues = (modelSelector.props("options") ?? []).map(option => String(option.value))
   expect(modelValues).toContain("portrait.safetensors")
   expect(modelValues).toContain("image.safetensors")
   expect(modelValues).not.toContain("landscape.safetensors")

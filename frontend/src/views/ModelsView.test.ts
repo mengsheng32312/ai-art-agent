@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { mount } from "@vue/test-utils"
-import { Segmented } from "ant-design-vue"
+import { Segmented, Select } from "ant-design-vue"
 import { expect, test } from "vitest"
 
 import ModelsView from "./ModelsView.vue"
@@ -24,6 +24,7 @@ const capabilityModel = {
     required_inputs: {},
     required_components: {},
     workflow_family: { text_to_image: "standard_checkpoint" },
+    content_tags: ["general" as const],
     description_zh: "通用图片模型",
     recommended_params: {},
     confirmed: true,
@@ -123,6 +124,10 @@ test("模型能力设置可以保存用户确认的用途", async () => {
 
   const settings = wrapper.findAll("button").find(item => item.text().includes("能力设置"))
   await settings?.trigger("click")
+  const contentTags = wrapper.findComponent(Select)
+  expect(contentTags.exists()).toBe(true)
+  contentTags.vm.$emit("update:value", ["portrait", "anime"])
+  await wrapper.vm.$nextTick()
   const save = document.body.querySelector<HTMLElement>('[data-testid="save-capabilities"]')
   save?.click()
   await wrapper.vm.$nextTick()
@@ -130,6 +135,7 @@ test("模型能力设置可以保存用户确认的用途", async () => {
   expect(wrapper.emitted("saveCapabilities")?.[0]?.[0]).toMatchObject({
     filename: "model.safetensors",
     capabilities: ["text_to_image"],
+    content_tags: ["portrait", "anime"],
     confirmed: true,
   })
   wrapper.unmount()

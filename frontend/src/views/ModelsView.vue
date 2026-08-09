@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
-import { Alert, Button, Card, Checkbox, Col, Empty, Input, Modal, Pagination, Row, Segmented, Space, Spin, Tag, Tooltip } from "ant-design-vue"
+import { Alert, Button, Card, Checkbox, Col, Empty, Input, Modal, Pagination, Row, Segmented, Select, Space, Spin, Tag, Tooltip } from "ant-design-vue"
 import {
   CloudDownloadOutlined,
   LinkOutlined,
@@ -9,12 +9,13 @@ import {
 import {
   proxiedImageUrl,
   type Config,
+  type ContentTag,
   type CreationType,
   type ModelCapabilityUpdate,
   type ModelCatalogResponse,
   type ModelItem,
 } from "../lib/api"
-import { creationTypeLabels } from "../lib/modelCapabilities"
+import { contentTagLabels, creationTypeLabels } from "../lib/modelCapabilities"
 
 const props = defineProps<{
   config: Config
@@ -37,20 +38,26 @@ const emit = defineEmits<{
 
 const editingModel = ref<ModelItem | null>(null)
 const editingCapabilities = ref<CreationType[]>([])
+const editingContentTags = ref<ContentTag[]>(["general"])
 const editingDescription = ref("")
 const capabilityOptions = Object.entries(creationTypeLabels).map(([value, label]) => ({
   value: value as CreationType,
+  label,
+}))
+const contentTagOptions = Object.entries(contentTagLabels).map(([value, label]) => ({
+  value: value as ContentTag,
   label,
 }))
 
 function openCapabilitySettings(model: ModelItem) {
   editingModel.value = model
   editingCapabilities.value = [...model.capability_profile.capabilities]
+  editingContentTags.value = [...model.capability_profile.content_tags]
   editingDescription.value = model.capability_profile.description_zh
 }
 
 function saveCapabilitySettings() {
-  if (!editingModel.value) return
+  if (!editingModel.value || !editingContentTags.value.length) return
   const requiredInputs: ModelCapabilityUpdate["required_inputs"] = {}
   const requiredComponents: ModelCapabilityUpdate["required_components"] = {}
   const workflowFamily: ModelCapabilityUpdate["workflow_family"] = {}
@@ -76,6 +83,7 @@ function saveCapabilitySettings() {
     required_inputs: requiredInputs,
     required_components: requiredComponents,
     workflow_family: workflowFamily,
+    content_tags: [...editingContentTags.value],
     description_zh: editingDescription.value.trim(),
     recommended_params: editingModel.value.capability_profile.recommended_params,
     confirmed: editingCapabilities.value.length > 0,
@@ -202,10 +210,25 @@ const availableModelTitle = computed(() =>
           </Checkbox>
         </Space>
       </Checkbox.Group>
+      <div>
+        <div class="field-label">擅长内容</div>
+        <Select
+          v-model:value="editingContentTags"
+          mode="multiple"
+          :options="contentTagOptions"
+          placeholder="至少选择一个内容标签"
+          style="width: 100%"
+        />
+      </div>
       <Input.TextArea v-model:value="editingDescription" :rows="3" placeholder="中文用途说明" />
       <Space style="justify-content: flex-end; width: 100%">
         <Button @click="editingModel = null">取消</Button>
-        <Button data-testid="save-capabilities" type="primary" @click="saveCapabilitySettings">
+        <Button
+          data-testid="save-capabilities"
+          type="primary"
+          :disabled="!editingContentTags.length"
+          @click="saveCapabilitySettings"
+        >
           保存
         </Button>
       </Space>

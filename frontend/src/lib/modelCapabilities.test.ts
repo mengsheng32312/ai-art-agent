@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { GenerationRequest, ModelItem } from "./api"
+import type { ContentTag, GenerationRequest, ModelItem } from "./api"
 import {
   applyCreationType,
   filterModelsForContent,
@@ -11,7 +11,7 @@ function model(
   filename: string,
   capabilities: ModelItem["capability_profile"]["capabilities"],
   confirmed = true,
-  contentTags = ["general"],
+  contentTags: ContentTag[] = ["general"],
 ): ModelItem {
   return {
     id: filename,
