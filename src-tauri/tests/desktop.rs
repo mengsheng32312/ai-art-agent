@@ -50,6 +50,7 @@ fn builds_the_portable_comfyui_command_from_the_selected_root() {
             OsString::from("127.0.0.1"),
             OsString::from("--port"),
             OsString::from("8188"),
+            OsString::from("--enable-manager"),
         ]
     );
 }
@@ -85,6 +86,7 @@ fn manages_the_portable_python_process_when_a_launcher_batch_file_is_available()
             OsString::from("127.0.0.1"),
             OsString::from("--port"),
             OsString::from("8188"),
+            OsString::from("--enable-manager"),
         ]
     );
 }

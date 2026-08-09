@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use tauri::{Manager, State};
+use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -103,6 +103,17 @@ pub fn validate_comfyui_directory_path(root: &Path) -> Result<(), String> {
         .or_else(|| comfyui_launcher_batch(root))
         .map(|_| ())
         .ok_or_else(|| "目录中未找到 ComfyUI 的 main.py 或 portable 启动 .bat".into())
+}
+
+pub fn validate_comfyui_web_url(raw: &str) -> Result<tauri::Url, String> {
+    let url = raw
+        .trim()
+        .parse::<tauri::Url>()
+        .map_err(|_| "ComfyUI 地址无效".to_string())?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("ComfyUI 地址只支持 http 或 https".into());
+    }
+    Ok(url)
 }
 
 fn comfyui_python(root: &Path, current_dir: &Path) -> PathBuf {
@@ -610,6 +621,43 @@ async fn enable_comfyui_manager(
 }
 
 #[tauri::command]
+fn open_comfyui_manager(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    let target = validate_comfyui_web_url(&url)?;
+    if let Some(window) = app.get_webview_window("comfyui-manager") {
+        let current = window
+            .url()
+            .map_err(|error| format!("读取 ComfyUI 窗口地址失败：{error}"))?;
+        if current == target {
+            window
+                .show()
+                .map_err(|error| format!("显示 ComfyUI 窗口失败：{error}"))?;
+            window
+                .set_focus()
+                .map_err(|error| format!("聚焦 ComfyUI 窗口失败：{error}"))?;
+            return Ok(());
+        }
+        window
+            .close()
+            .map_err(|error| format!("关闭旧 ComfyUI 窗口失败：{error}"))?;
+    }
+
+    let window = WebviewWindowBuilder::new(
+        &app,
+        "comfyui-manager",
+        WebviewUrl::External(target),
+    )
+    .title("ComfyUI 模型库")
+    .inner_size(1280.0, 820.0)
+    .min_inner_size(960.0, 640.0)
+    .center()
+    .build()
+    .map_err(|error| format!("创建 ComfyUI 窗口失败：{error}"))?;
+    window
+        .set_focus()
+        .map_err(|error| format!("聚焦 ComfyUI 窗口失败：{error}"))
+}
+
+#[tauri::command]
 fn stop_comfyui(processes: State<'_, ManagedProcesses>) -> Result<(), String> {
     stop_managed_comfyui(&processes)
 }
@@ -632,6 +680,7 @@ pub fn run() {
             start_local_agent,
             start_comfyui,
             enable_comfyui_manager,
+            open_comfyui_manager,
             stop_comfyui,
             stop_managed_processes
         ])
@@ -649,6 +698,17 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accepts_http_comfyui_urls_and_rejects_other_schemes() {
+        assert_eq!(
+            validate_comfyui_web_url("http://127.0.0.1:8188")
+                .expect("valid ComfyUI URL")
+                .as_str(),
+            "http://127.0.0.1:8188/"
+        );
+        assert!(validate_comfyui_web_url("file:///tmp/index.html").is_err());
+    }
 
     struct FakeAgentChild {
         pid: u32,
