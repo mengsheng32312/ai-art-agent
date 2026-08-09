@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { afterEach, expect, test, vi } from "vitest"
 
 import * as desktop from "./desktop"
@@ -131,6 +133,31 @@ test("rejects a health response whose status is not ok", async () => {
 
 test("uses the development proxy outside Tauri", () => {
   expect(desktop.agentApiBase()).toBe("/api")
+})
+
+test("opens ComfyUI Manager in a desktop window", async () => {
+  const invoke = vi.fn().mockResolvedValue(undefined)
+  ;(window as Window & { __TAURI__?: unknown }).__TAURI__ = {
+    core: { invoke },
+  }
+
+  await desktop.openComfyuiManager("http://127.0.0.1:8188")
+
+  expect(invoke).toHaveBeenCalledWith("open_comfyui_manager", {
+    url: "http://127.0.0.1:8188",
+  })
+})
+
+test("opens ComfyUI Manager in a browser outside Tauri", async () => {
+  const open = vi.spyOn(window, "open").mockReturnValue(null)
+
+  await desktop.openComfyuiManager("http://127.0.0.1:8188")
+
+  expect(open).toHaveBeenCalledWith(
+    "http://127.0.0.1:8188",
+    "_blank",
+    "noopener",
+  )
 })
 
 test("preserves the desktop startup error for the UI once", () => {

@@ -101,6 +101,15 @@ export async function enableComfyuiManager(path: string): Promise<void> {
   await tauri.invoke<number>("enable_comfyui_manager", { path })
 }
 
+export async function openComfyuiManager(url: string): Promise<void> {
+  const tauri = core()
+  if (tauri) {
+    await tauri.invoke<void>("open_comfyui_manager", { url })
+    return
+  }
+  window.open(url, "_blank", "noopener")
+}
+
 export async function stopComfyui(): Promise<void> {
   const tauri = core()
   if (!tauri) return
