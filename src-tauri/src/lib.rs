@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -155,9 +155,9 @@ pub fn comfyui_process_spec(root: &Path) -> Result<ProcessSpec, String> {
             "8188",
             "--enable-manager",
         ]
-            .into_iter()
-            .map(OsString::from)
-            .collect(),
+        .into_iter()
+        .map(OsString::from)
+        .collect(),
     })
 }
 
@@ -261,7 +261,12 @@ fn local_agent_process_spec(app: &tauri::AppHandle, port: u16) -> Result<Process
 
 fn spawn_process(spec: &ProcessSpec) -> Result<Child, String> {
     let mut command = Command::new(&spec.program);
-    command.args(&spec.args).current_dir(&spec.current_dir);
+    command
+        .args(&spec.args)
+        .current_dir(&spec.current_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -738,8 +743,11 @@ mod tests {
         let comfy_root = portable_root.join("ComfyUI");
         std::fs::create_dir_all(&comfy_root).expect("create ComfyUI directory");
         std::fs::write(comfy_root.join("main.py"), "").expect("create main.py");
-        std::fs::write(comfy_root.join("manager_requirements.txt"), "comfyui_manager==4.1")
-            .expect("create manager requirements");
+        std::fs::write(
+            comfy_root.join("manager_requirements.txt"),
+            "comfyui_manager==4.1",
+        )
+        .expect("create manager requirements");
         std::fs::create_dir_all(portable_root.join("python_embeded"))
             .expect("create embedded Python directory");
         std::fs::write(portable_root.join("python_embeded").join("python.exe"), "")
@@ -759,6 +767,35 @@ mod tests {
         assert_eq!(
             install_spec.args[4],
             comfy_root.join("manager_requirements.txt").into_os_string()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn background_process_receives_valid_null_standard_handles() {
+        let script = r#"
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeFileType { [DllImport("kernel32.dll")] public static extern IntPtr GetStdHandle(int nStdHandle); [DllImport("kernel32.dll")] public static extern uint GetFileType(IntPtr hFile); }'
+$handleTypes = -10, -11, -12 | ForEach-Object { [NativeFileType]::GetFileType([NativeFileType]::GetStdHandle($_)) }
+if ($handleTypes -notcontains 2) { exit 1 }
+if ($handleTypes | Where-Object { $_ -ne 2 }) { exit 1 }
+"#;
+        let spec = ProcessSpec {
+            program: PathBuf::from("powershell.exe"),
+            args: ["-NoProfile", "-Command", script]
+                .into_iter()
+                .map(OsString::from)
+                .collect(),
+            current_dir: std::env::temp_dir(),
+        };
+
+        let status = spawn_process(&spec)
+            .expect("spawn background process")
+            .wait()
+            .expect("wait for background process");
+
+        assert!(
+            status.success(),
+            "background standard handles must point to NUL"
         );
     }
 }
