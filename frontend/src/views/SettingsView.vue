@@ -26,7 +26,7 @@ const modeOptions = [
 ]
 
 // Status details belong in the status area; action notices stay separate.
-const shouldShowConnectionDetail = computed(() => props.testingConnection || props.connected || props.connectionMessage !== "尚未连接")
+const shouldShowConnectionDetail = computed(() => !props.testingConnection && (props.connected || props.connectionMessage !== "尚未连接"))
 </script>
 
 <template>
@@ -83,7 +83,7 @@ const shouldShowConnectionDetail = computed(() => props.testingConnection || pro
         <Alert
           show-icon
           :type="connected ? 'success' : 'info'"
-          :message="testingConnection ? '正在测试连接' : connected ? '连接正常' : '尚未连接'"
+          :message="testingConnection ? connectionMessage : connected ? '连接正常' : '尚未连接'"
           :description="shouldShowConnectionDetail ? connectionMessage : undefined"
         />
 
@@ -91,7 +91,7 @@ const shouldShowConnectionDetail = computed(() => props.testingConnection || pro
           <Button :loading="testingConnection" :disabled="busy" @click="emit('refresh')">测试连接</Button>
         </div>
 
-        <Alert v-if="notice" class="form-notice" show-icon :type="noticeType" :message="notice" />
+        <Alert v-if="notice && !testingConnection" class="form-notice" show-icon :type="noticeType" :message="notice" />
       </Form>
     </Card>
   </div>

@@ -107,12 +107,40 @@ function Import-VisualStudioEnvironment {
     Write-Host "Using Visual Studio build environment: $vsDevCmd"
 }
 
+function Ensure-BackendEnvironment {
+    $backend = Join-Path $projectRoot "backend"
+    $python = Join-Path $backend ".venv\Scripts\python.exe"
+
+    if (-not (Test-Path -LiteralPath $python)) {
+        $systemPython = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $systemPython) {
+            throw "Python is not available. Install Python 3.11 or newer."
+        }
+        & $systemPython.Source -m venv (Join-Path $backend ".venv")
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to create the backend virtual environment."
+        }
+    }
+
+    & $python -c "import fastapi, httpx, multipart, pydantic, uvicorn" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    Write-Host "Installing backend dependencies..."
+    & $python -m pip install -e $backend
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install backend dependencies."
+    }
+}
+
 if (-not (Test-Path -LiteralPath $tauri)) {
     throw "Tauri CLI not found. Run npm install in frontend first."
 }
 
 Use-StandaloneRustIfNeeded
 Import-VisualStudioEnvironment
+Ensure-BackendEnvironment
 
 Push-Location $projectRoot
 try {

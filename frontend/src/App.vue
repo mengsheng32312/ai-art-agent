@@ -84,7 +84,7 @@ const pageMeta: Record<Page, { label: string; hint: string }> = {
 }
 
 const config = reactive<Config>({
-  mode: "remote",
+  mode: "local",
   comfyui_path: null,
   api_url: "http://127.0.0.1:8188",
 })
@@ -240,12 +240,12 @@ function selectModel(model: ModelItem) {
 
 async function ensureLocalComfyuiReady() {
   config.api_url = localApiUrl
-  notice.value = "正在检查本地 ComfyUI..."
+  connectionMessage.value = "正在检查本地 ComfyUI..."
   if (await checkCandidateConnection()) return true
 
-  notice.value = "正在启动本地 ComfyUI..."
+  connectionMessage.value = "正在启动本地 ComfyUI..."
   await startComfyui(config.comfyui_path ?? "")
-  notice.value = "正在等待 ComfyUI 启动..."
+  connectionMessage.value = "正在等待 ComfyUI 启动..."
   return waitForCandidateComfyui()
 }
 
@@ -321,8 +321,7 @@ async function refreshConnection() {
   try {
     if (config.mode === "local") {
       const ready = await ensureLocalComfyuiReady()
-      notice.value = "正在启动并连接本地 ComfyUI..."
-      notice.value = ready ? "连接成功" : "ComfyUI 启动超时，请稍后重试"
+      connectionMessage.value = ready ? "连接正常" : "ComfyUI 启动超时，请稍后重试"
       if (ready) {
         await api.saveConfig(config)
         message.success("测试连接成功，设置已保存")

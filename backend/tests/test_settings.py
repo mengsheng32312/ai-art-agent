@@ -4,6 +4,7 @@ from app.settings import AppConfig, ConfigStore
 
 
 def test_default_config_uses_local_comfy_api() -> None:
+    assert AppConfig().mode == "local"
     assert AppConfig().api_url == "http://127.0.0.1:8188"
 
 
