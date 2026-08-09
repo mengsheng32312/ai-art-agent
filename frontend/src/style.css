@@ -973,6 +973,10 @@ body {
   background: var(--surface) !important;
 }
 
+.model-source-switcher {
+  margin-bottom: 14px;
+}
+
 .model-loading-card {
   min-height: 180px;
 }

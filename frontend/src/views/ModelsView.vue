@@ -98,8 +98,14 @@ const kindFilter = ref<"all" | ModelItem["kind"]>("all")
 const remoteKindFilter = ref<"all" | ModelItem["kind"]>("all")
 const localKindFilter = ref<"all" | ModelItem["kind"]>("all")
 const usageFilter = ref<"all" | ModelItem["usage"]>("all")
+const modelSourceFilter = ref<"available" | "local" | "remote">("available")
 const onlinePage = ref(1)
 const onlinePageSize = 12
+const modelSourceOptions = [
+  { label: "可用模型", value: "available" },
+  { label: "本地模型", value: "local" },
+  { label: "远程模型", value: "remote" },
+]
 const kindFilterOptions = [
   { label: "全部", value: "all" },
   { label: "Checkpoint", value: "checkpoint" },
@@ -255,6 +261,13 @@ const availableModelTitle = computed(() =>
   </Card>
 
   <template v-else>
+    <Segmented
+      v-model:value="modelSourceFilter"
+      :options="modelSourceOptions"
+      block
+      class="model-source-switcher"
+    />
+
     <Alert
       v-if="config.mode !== 'local' || !config.comfyui_path"
       class="model-section"
@@ -264,7 +277,7 @@ const availableModelTitle = computed(() =>
       description="远程模式下，只有远程 ComfyUI 可用模型能直接用于生成。本地目录模型只是本机文件，不能直接被远程 ComfyUI 调用。"
     />
 
-    <Card :bordered="false" class="model-section">
+    <Card v-if="modelSourceFilter === 'available'" :bordered="false" class="model-section">
       <template #title>
         <Space class="model-section-title" wrap>
           <span>{{ availableModelTitle }}</span>
@@ -315,7 +328,7 @@ const availableModelTitle = computed(() =>
       </Row>
     </Card>
 
-    <Card :bordered="false" class="model-section">
+    <Card v-if="modelSourceFilter === 'local'" :bordered="false" class="model-section">
       <template #title>
         <Space class="model-section-title" wrap>
           <span>本地目录模型</span>
@@ -376,7 +389,12 @@ const availableModelTitle = computed(() =>
       </Row>
     </Card>
 
-    <Card title="在线模型库" :bordered="false" class="model-section">
+    <Card
+      v-if="modelSourceFilter === 'remote'"
+      title="在线模型库"
+      :bordered="false"
+      class="model-section"
+    >
       <Alert
         v-if="!catalog.manager_available"
         type="info"

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { mount } from "@vue/test-utils"
+import { Segmented } from "ant-design-vue"
 import { expect, test } from "vitest"
 
 import ModelsView from "./ModelsView.vue"
@@ -85,6 +86,8 @@ test("本地 Manager 不可用时提供一键启用按钮", async () => {
     },
   })
 
+  wrapper.findAllComponents(Segmented)[0].vm.$emit("update:value", "remote")
+  await wrapper.vm.$nextTick()
   const button = wrapper.findAll("button").find(item => item.text().includes("一键启用 Manager"))
   expect(button).toBeDefined()
   await button?.trigger("click")
@@ -130,4 +133,49 @@ test("模型能力设置可以保存用户确认的用途", async () => {
     confirmed: true,
   })
   wrapper.unmount()
+})
+
+test("顶部分类切换每次只展示一个模型列表", async () => {
+  const wrapper = mount(ModelsView, {
+    props: {
+      config: {
+        mode: "local",
+        comfyui_path: "D:\\ComfyUI",
+        local_model_path: "D:\\ComfyUI\\models",
+        api_url: "http://127.0.0.1:8188",
+      },
+      connected: true,
+      catalog: {
+        connected: true,
+        manager_available: true,
+        message: "ComfyUI 已连接",
+        remote_models: [{ ...capabilityModel, id: "available", name: "可用模型甲" }],
+        local_models: [
+          { ...capabilityModel, id: "local", name: "本地模型乙", source: "local" },
+        ],
+        online_models: [
+          { ...capabilityModel, id: "online", name: "远程模型丙", source: "manager" },
+        ],
+      },
+      catalogLoaded: true,
+      loading: false,
+      downloadingKey: "",
+      downloadingModels: [],
+      enablingManager: false,
+    },
+  })
+
+  expect(wrapper.text()).toContain("可用模型甲")
+  expect(wrapper.text()).not.toContain("本地模型乙")
+  expect(wrapper.text()).not.toContain("远程模型丙")
+
+  wrapper.findAllComponents(Segmented)[0].vm.$emit("update:value", "local")
+  await wrapper.vm.$nextTick()
+  expect(wrapper.text()).toContain("本地模型乙")
+  expect(wrapper.text()).not.toContain("可用模型甲")
+
+  wrapper.findAllComponents(Segmented)[0].vm.$emit("update:value", "remote")
+  await wrapper.vm.$nextTick()
+  expect(wrapper.text()).toContain("远程模型丙")
+  expect(wrapper.text()).not.toContain("本地模型乙")
 })
