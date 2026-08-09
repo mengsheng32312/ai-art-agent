@@ -12,8 +12,29 @@ beforeAll(async () => {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   document.getElementById("ai-art-agent-manager-loading")?.remove()
   document.body.replaceChildren()
+})
+
+test("HTML 根节点尚未创建时等待 DOMContentLoaded 再挂载", () => {
+  const body = document.body
+  const documentElement = document.documentElement
+  let parsed = false
+  vi.spyOn(document, "body", "get").mockImplementation(() => parsed ? body : null)
+  vi.spyOn(document, "documentElement", "get").mockImplementation(
+    () => parsed ? documentElement : null,
+  )
+
+  expect(() => {
+    ;(window as ManagerLoadingWindow).__installComfyuiManagerLoading()
+  }).not.toThrow()
+  expect(document.getElementById("ai-art-agent-manager-loading")).toBeNull()
+
+  parsed = true
+  document.dispatchEvent(new Event("DOMContentLoaded"))
+
+  expect(document.getElementById("ai-art-agent-manager-loading")).not.toBeNull()
 })
 
 test("ComfyUI 页面就绪前显示加载状态，就绪后自动移除", async () => {

@@ -4,6 +4,16 @@
   window.__installComfyuiManagerLoading = function () {
     window.__disposeComfyuiManagerLoading?.()
 
+    const host = document.body || document.documentElement
+    if (!host) {
+      const installWhenReady = () => window.__installComfyuiManagerLoading()
+      document.addEventListener("DOMContentLoaded", installWhenReady, { once: true })
+      window.__disposeComfyuiManagerLoading = () => {
+        document.removeEventListener("DOMContentLoaded", installWhenReady)
+      }
+      return
+    }
+
     let observer
     let timeoutId
     let settled = false
@@ -72,7 +82,7 @@
         <p>首次打开可能需要几秒钟</p>
       </div>
     `
-    ;(document.body || document.documentElement).prepend(overlay)
+    host.prepend(overlay)
 
     const cleanupListeners = () => {
       observer?.disconnect()
