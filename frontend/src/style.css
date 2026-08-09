@@ -497,35 +497,6 @@ body {
   animation: preview-loading-shimmer 1.5s ease-in-out infinite;
 }
 
-.preview-orbit {
-  position: relative;
-  width: 54px;
-  height: 54px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-.preview-orbit::before {
-  position: absolute;
-  inset: 10px;
-  content: "";
-  border: 2px solid var(--accent-soft);
-  border-top-color: var(--accent);
-  border-radius: var(--radius-sm);
-  animation: preview-orbit 0.9s linear infinite;
-}
-
-.preview-orbit span {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  background: var(--accent);
-  border-radius: var(--radius-sm);
-  transform: translateX(-50%);
-}
-
 .preview-loading-title {
   font-size: 15px;
   font-weight: 600;
@@ -544,12 +515,6 @@ body {
   }
   to {
     background-position: -200% 0;
-  }
-}
-
-@keyframes preview-orbit {
-  to {
-    transform: rotate(360deg);
   }
 }
 

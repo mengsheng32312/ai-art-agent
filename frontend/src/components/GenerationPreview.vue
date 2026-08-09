@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue"
-import { Alert, Button, Card, Empty, Progress } from "ant-design-vue"
+import { Alert, Button, Card, Empty, Progress, Spin } from "ant-design-vue"
 import { proxiedImageUrl, type GenerationTask } from "../lib/api"
 
 const props = defineProps<{ task: GenerationTask | null; blockedReason: string }>()
@@ -76,9 +76,7 @@ function retryImage() {
     </div>
     <div v-else class="preview-empty">
       <div v-if="task" class="preview-loading-panel">
-        <div class="preview-orbit">
-          <span />
-        </div>
+        <Spin size="large" />
         <div class="preview-loading-title">正在生成</div>
         <div class="preview-loading-hint">任务已提交到 ComfyUI，结果完成后会自动显示。</div>
         <Progress :percent="task.progress" status="active" />
