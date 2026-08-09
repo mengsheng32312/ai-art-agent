@@ -10,6 +10,7 @@ import {
   prepareDesktopAgent,
   recordDesktopStartupError,
   selectComfyuiDirectory,
+  selectDirectory,
   startComfyui,
   takeDesktopStartupError,
 } from "./lib/desktop"
@@ -86,6 +87,7 @@ const pageMeta: Record<Page, { label: string; hint: string }> = {
 const config = reactive<Config>({
   mode: "local",
   comfyui_path: null,
+  local_model_path: null,
   api_url: "http://127.0.0.1:8188",
 })
 
@@ -249,9 +251,12 @@ async function ensureLocalComfyuiReady() {
   return waitForCandidateComfyui()
 }
 
-// Download is intentionally allowed only after local ComfyUI path is configured.
+// 本地下载需要明确的模型目录；本地模式可回退到 ComfyUI 安装目录。
 async function downloadModel(id: string, destination: "remote" | "local" = "local") {
-  if (destination === "local" && !config.comfyui_path?.trim()) {
+  const localModelPath = config.local_model_path?.trim() || (
+    config.mode === "local" ? config.comfyui_path?.trim() : ""
+  )
+  if (destination === "local" && !localModelPath) {
     message.warning("请先在连接设置填写本地模型目录")
     return
   }
@@ -374,6 +379,24 @@ async function chooseComfyuiDirectory() {
     }
     if (selected) {
       config.comfyui_path = selected
+      clearActionState()
+    }
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : String(error)
+    noticeType.value = "error"
+  }
+}
+
+async function chooseLocalModelDirectory() {
+  try {
+    if (!isDesktop()) {
+      notice.value = "浏览器模式不能读取完整文件夹路径，请直接在输入框中填写完整目录"
+      noticeType.value = "info"
+      return
+    }
+    const selected = await selectDirectory()
+    if (selected) {
+      config.local_model_path = selected
       clearActionState()
     }
   } catch (error) {
@@ -646,6 +669,7 @@ onMounted(async () => {
             :settings-error="settingsError"
             @clear="clearActionState"
             @choose-directory="chooseComfyuiDirectory"
+            @choose-model-directory="chooseLocalModelDirectory"
             @refresh="refreshConnection"
           />
         </Layout.Content>

@@ -88,6 +88,33 @@ def test_model_catalog_separates_remote_and_local_models(tmp_path: Path) -> None
     assert online["downloadable.safetensors"]["installed"] is False
 
 
+def test_model_catalog_scans_the_selected_local_model_directory(tmp_path: Path) -> None:
+    comfy_root = tmp_path / "ComfyUI"
+    model_root = tmp_path / "shared-models"
+    checkpoint_dir = model_root / "checkpoints"
+    checkpoint_dir.mkdir(parents=True)
+    (checkpoint_dir / "local-only.safetensors").write_text("model", encoding="utf-8")
+
+    client = TestClient(
+        create_app(data_dir=tmp_path / "data", comfy_factory=lambda _: FakeModelComfyClient())
+    )
+    client.put(
+        "/api/config",
+        json={
+            "mode": "local",
+            "api_url": "http://127.0.0.1:8188",
+            "comfyui_path": str(comfy_root),
+            "local_model_path": str(model_root),
+        },
+    )
+
+    catalog = client.get("/api/models/catalog").json()
+
+    assert [item["filename"] for item in catalog["local_models"]] == [
+        "local-only.safetensors"
+    ]
+
+
 def test_download_to_remote_passes_model_metadata_directly(tmp_path: Path) -> None:
     fake = FakeModelComfyClient()
     client = TestClient(

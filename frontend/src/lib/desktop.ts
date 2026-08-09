@@ -37,6 +37,12 @@ export async function selectComfyuiDirectory(): Promise<string | null> {
   return tauri.invoke<string | null>("select_comfyui_directory")
 }
 
+export async function selectDirectory(): Promise<string | null> {
+  const tauri = core()
+  if (!tauri) return null
+  return tauri.invoke<string | null>("select_directory")
+}
+
 export async function startDesktopAgent(): Promise<void> {
   const tauri = core()
   if (!tauri) return

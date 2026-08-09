@@ -24,11 +24,14 @@ const emit = defineEmits<{
   download: [id: string, destination: "remote" | "local"]
 }>()
 
-const canDownloadLocal = computed(() => Boolean(props.config.comfyui_path))
+const localModelPath = computed(() =>
+  props.config.local_model_path || (props.config.mode === "local" ? props.config.comfyui_path : null),
+)
+const canDownloadLocal = computed(() => Boolean(localModelPath.value))
 const isModelDownloading = (item: ModelItem) =>
   props.downloadingModels.some(model => model.id === item.id)
 const downloadDisabledReason = computed(() => {
-  if (!props.config.comfyui_path) return "请先在连接设置填写本地模型目录"
+  if (!localModelPath.value) return "请先在连接设置填写本地模型目录"
   return ""
 })
 
@@ -102,8 +105,18 @@ function usageMeta(usage: ModelItem["usage"]) {
 }
 
 function sourceText(source: ModelItem["source"]) {
-  return source === "local" ? "本地文件" : source === "comfyui" ? "远程可用" : "在线模型"
+  return source === "local"
+    ? "本地文件"
+    : source === "comfyui"
+      ? props.config.mode === "local"
+        ? "ComfyUI 可用"
+        : "远程可用"
+      : "在线模型"
 }
+
+const availableModelTitle = computed(() =>
+  props.config.mode === "local" ? "ComfyUI 可用模型" : "远程可用模型",
+)
 </script>
 
 <template>
@@ -118,7 +131,7 @@ function sourceText(source: ModelItem["source"]) {
       <div class="model-toolbar-status">
         <span v-if="connected" class="field-help">{{ catalog.message }}</span>
         <div class="model-toolbar-stats">
-          <span class="model-stat-item">远程可用：{{ catalog.remote_models.length }}</span>
+          <span class="model-stat-item">{{ config.mode === 'local' ? 'ComfyUI 可用' : '远程可用' }}：{{ catalog.remote_models.length }}</span>
           <span class="model-stat-item">本地目录：{{ catalog.local_models.length }}</span>
           <span class="model-stat-item">在线模型：{{ catalog.online_models.length }}</span>
         </div>
@@ -170,7 +183,7 @@ function sourceText(source: ModelItem["source"]) {
     <Card :bordered="false" class="model-section">
       <template #title>
         <Space class="model-section-title" wrap>
-          <span>远程可用模型</span>
+          <span>{{ availableModelTitle }}</span>
           <Segmented v-model:value="usageFilter" :options="usageFilterOptions" size="small" />
           <Segmented v-model:value="remoteKindFilter" :options="kindFilterOptions" size="small" />
         </Space>
@@ -178,7 +191,7 @@ function sourceText(source: ModelItem["source"]) {
       <Empty
         v-if="!filteredRemoteModels.length"
         :image="Empty.PRESENTED_IMAGE_SIMPLE"
-        description="当前筛选没有远程可用模型。"
+        :description="`当前筛选没有${availableModelTitle}。`"
       />
       <Row v-else :gutter="[12, 12]" class="model-list-row">
         <Col v-for="item in filteredRemoteModels" :key="item.id" :xs="24">
@@ -273,7 +286,7 @@ function sourceText(source: ModelItem["source"]) {
         type="info"
         show-icon
         message="在线模型库不可用"
-        description="当前 ComfyUI 未安装或未启用 ComfyUI Manager，仅展示远程可用模型和本地目录模型。启用后即可浏览在线模型库。"
+        :description="`当前 ComfyUI 未安装或未启用 ComfyUI Manager，仅展示${availableModelTitle}和本地目录模型。启用后即可浏览在线模型库。`"
       />
       <template v-else>
         <Alert
@@ -312,7 +325,7 @@ function sourceText(source: ModelItem["source"]) {
               <div class="model-file" :title="item.filename">{{ item.filename }}</div>
               <Space>
                 <Tag :color="item.installed ? 'success' : 'default'">
-                  {{ item.installed ? "已在远程可用" : "可安装" }}
+                  {{ item.installed ? (config.mode === 'local' ? "已在 ComfyUI 可用" : "已在远程可用") : "可安装" }}
                 </Tag>
                 <Button
                   v-if="item.reference_url"

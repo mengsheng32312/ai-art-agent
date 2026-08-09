@@ -17,6 +17,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   clear: []
   chooseDirectory: []
+  chooseModelDirectory: []
   refresh: []
 }>()
 
@@ -64,20 +65,19 @@ const shouldShowConnectionDetail = computed(() => !props.testingConnection && (p
         </Form.Item>
 
         <Form.Item
-          v-if="config.mode === 'remote'"
           label="本地模型目录"
           :validate-status="settingsError ? 'error' : undefined"
           :help="settingsError || undefined"
         >
           <div class="inline-control-row">
             <Input
-              :value="config.comfyui_path ?? ''"
-              placeholder="D:\ComfyUI"
-              @update:value="value => { config.comfyui_path = value; emit('clear') }"
+              :value="config.local_model_path ?? ''"
+              placeholder="D:\ComfyUI\models"
+              @update:value="value => { config.local_model_path = value; emit('clear') }"
             />
-            <Button @click="emit('chooseDirectory')">选择目录</Button>
+            <Button @click="emit('chooseModelDirectory')">选择模型目录</Button>
           </div>
-          <div class="field-help">用于扫描本机真实模型文件；远程 ComfyUI 不能直接使用这些本机文件。</div>
+          <div class="field-help">请选择包含 checkpoints、loras、vae 等子目录的 models 文件夹。</div>
         </Form.Item>
 
         <Alert

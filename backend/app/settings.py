@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class AppConfig(BaseModel):
     mode: Literal["local", "remote"] = "local"
     comfyui_path: str | None = None
+    local_model_path: str | None = None
     api_url: str = Field(default="http://127.0.0.1:8188")
 
 

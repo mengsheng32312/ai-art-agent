@@ -102,13 +102,23 @@ def find_preview_image(model_file: Path) -> Path | None:
 
 
 def scan_local_models(config: AppConfig) -> list[ModelItem]:
-    if not config.comfyui_path:
+    if config.local_model_path:
+        root = Path(config.local_model_path)
+        directories = {
+            kind: root / relative_dir.name
+            for kind, relative_dir in MODEL_DIRS.items()
+        }
+    elif config.comfyui_path:
+        root = Path(config.comfyui_path)
+        directories = {
+            kind: root / relative_dir
+            for kind, relative_dir in MODEL_DIRS.items()
+        }
+    else:
         return []
 
-    root = Path(config.comfyui_path)
     items: list[ModelItem] = []
-    for kind, relative_dir in MODEL_DIRS.items():
-        directory = root / relative_dir
+    for kind, directory in directories.items():
         if not directory.exists():
             continue
         for file in sorted(directory.rglob("*")):
@@ -290,13 +300,18 @@ async def request_manager_download(
             if config.mode == "local" or destination == "remote":
                 await client.manager_install_model(raw)
             else:
-                if not config.comfyui_path:
+                model_root = config.local_model_path or (
+                    str(Path(config.comfyui_path) / "models")
+                    if config.comfyui_path
+                    else None
+                )
+                if not model_root:
                     raise ValueError("请先在连接设置中填写本地模型目录")
                 url = str(raw.get("url") or "").strip()
                 if not url:
                     raise ValueError("该模型没有直链下载地址，无法下载到本地")
                 folder = str(raw.get("save_path") or MODEL_DIRS[model.kind].name).strip("/")
-                destination_dir = Path(config.comfyui_path) / "models" / folder
+                destination_dir = Path(model_root) / folder
                 await client.download_model_file(url, model.filename, destination_dir)
             return model
 

@@ -3,6 +3,7 @@ import { agentApiBase } from "./desktop"
 export type Config = {
   mode: "local" | "remote"
   comfyui_path: string | null
+  local_model_path: string | null
   api_url: string
 }
 

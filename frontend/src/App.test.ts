@@ -12,6 +12,7 @@ vi.mock("./lib/desktop", () => ({
   prepareDesktopAgent: vi.fn(() => new Promise(() => {})),
   recordDesktopStartupError: vi.fn(),
   selectComfyuiDirectory: vi.fn(),
+  selectDirectory: vi.fn(),
   startComfyui: vi.fn(),
   takeDesktopStartupError: vi.fn(() => null),
 }))

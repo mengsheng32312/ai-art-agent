@@ -480,6 +480,15 @@ async fn select_comfyui_directory(app: tauri::AppHandle) -> Result<Option<String
 }
 
 #[tauri::command]
+async fn select_directory(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let Some(selection) = app.dialog().file().blocking_pick_folder() else {
+        return Ok(None);
+    };
+    let path = selection.into_path().map_err(|error| error.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
 fn validate_comfyui_directory(path: String) -> Result<(), String> {
     validate_comfyui_directory_path(Path::new(&path))
 }
@@ -534,6 +543,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             select_comfyui_directory,
+            select_directory,
             validate_comfyui_directory,
             open_in_explorer,
             start_local_agent,
