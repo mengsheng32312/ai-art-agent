@@ -35,6 +35,12 @@ from .settings import AppConfig, ConfigStore, default_data_dir
 install_fallback_resolver()
 
 
+def resolve_comfyui_root(raw_path: str) -> Path:
+    selected = Path(raw_path)
+    nested = selected / "ComfyUI"
+    return nested if (nested / "main.py").is_file() else selected
+
+
 def create_app(
     data_dir: Path | None = None,
     comfy_factory: Callable[[str], ComfyClient] = ComfyClient,
@@ -412,7 +418,7 @@ def create_app(
             return UploadResponse(name=name, path=None, mode="remote")
         if not config.comfyui_path:
             raise HTTPException(status_code=400, detail="请先在连接设置填写本地模型目录")
-        destination = Path(config.comfyui_path) / "input" / safe_name
+        destination = resolve_comfyui_root(config.comfyui_path) / "input" / safe_name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
         return UploadResponse(name=destination.name, path=str(destination), mode="local")

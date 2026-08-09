@@ -302,3 +302,36 @@ def test_upload_local_writes_to_input_dir(tmp_path: Path) -> None:
         "mode": "local",
     }
     assert (comfy_root / "input" / "clip.mp4").read_bytes() == b"mp4-data"
+
+
+def test_upload_local_portable_root_writes_to_comfyui_input_dir(tmp_path: Path) -> None:
+    portable_root = tmp_path / "ComfyUI_windows_portable"
+    comfy_root = portable_root / "ComfyUI"
+    comfy_root.mkdir(parents=True)
+    (comfy_root / "main.py").write_text("", encoding="utf-8")
+    client = TestClient(
+        create_app(data_dir=tmp_path / "data", comfy_factory=lambda _: FakeModelComfyClient())
+    )
+    client.put(
+        "/api/config",
+        json={
+            "mode": "local",
+            "api_url": "http://127.0.0.1:8188",
+            "comfyui_path": str(portable_root),
+        },
+    )
+
+    response = client.post(
+        "/api/upload",
+        params={"kind": "image"},
+        files={"file": ("condition.JPEG", b"jpeg-data", "image/jpeg")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "condition.JPEG",
+        "path": str(comfy_root / "input" / "condition.JPEG"),
+        "mode": "local",
+    }
+    assert (comfy_root / "input" / "condition.JPEG").read_bytes() == b"jpeg-data"
+    assert not (portable_root / "input" / "condition.JPEG").exists()
